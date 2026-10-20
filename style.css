@@ -147,3 +147,13 @@ footer { color: var(--muted); font-size: 0.8125rem; }
 @media (prefers-reduced-motion: no-preference) {
   .pick, .primary { transition: border-color .15s, opacity .15s; }
 }
+
+.confirm {
+  background: var(--surface); border: 1.5px solid var(--accent);
+  border-radius: 10px; padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.confirm p { margin: 0; font-weight: 500; }
+.confirm .btns { display: flex; flex-wrap: wrap; gap: 8px; }
+
+[hidden] { display: none !important; }

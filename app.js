@@ -157,6 +157,7 @@
   // ---------- результат ----------
   function hideResults() {
     $('error').hidden = true;
+    $('confirm').hidden = true;
     $('result').hidden = true;
     $('outputs').textContent = '';
     objectUrls.splice(0).forEach((u) => URL.revokeObjectURL(u));
@@ -208,12 +209,23 @@
     $('outputs').appendChild(card);
   }
 
-  $('run').addEventListener('click', async () => {
+  $('run').addEventListener('click', () => {
     hideResults();
-    const gd = state.gd, reg = state.reg;
-    const res = A.plan(gd, reg, { pitchLimit: +pitchLimit.value, keyThreshold: +keyThreshold.value });
+    const res = A.plan(state.gd, state.reg, { pitchLimit: +pitchLimit.value, keyThreshold: +keyThreshold.value });
     if (res.error) { showError(res.error); return; }
+    if (res.overLimit) {
+      $('confirm-text').textContent = res.warnings[0];
+      $('confirm').hidden = false;
+      $('confirm-yes').onclick = () => { $('confirm').hidden = true; process(res); };
+      $('confirm-no').onclick = () => { $('confirm').hidden = true; };
+      $('confirm').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      return;
+    }
+    process(res);
+  });
 
+  async function process(res) {
+    const gd = state.gd, reg = state.reg;
     busy = true; updateRunState();
     $('result').hidden = false;
     const plan = $('plan');
@@ -253,5 +265,5 @@
       showError('Не удалось обработать песни: ' + (err && err.message ? err.message : 'неизвестная ошибка') + '. Возможно, не хватило памяти, попробуйте песни покороче.');
     }
     busy = false; updateRunState();
-  });
+  }
 })();

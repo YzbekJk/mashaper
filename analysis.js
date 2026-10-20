@@ -275,7 +275,7 @@
       return { error: 'Не удалось определить BPM. Введите его вручную.' };
     }
     const warnings = [];
-    let semitones = 0, keyNote;
+    let semitones = 0, keyNote, overLimit = false;
 
     if (gk.keyless || rk.keyless) {
       const who = gk.keyless && rk.keyless ? 'У обеих песен нет тональности'
@@ -292,8 +292,9 @@
       let d = (((rk.tonic - gk.tonic) % 12) + 12) % 12;
       if (d > 6) d -= 12;
       if (Math.abs(d) > pitchLimit) {
+        overLimit = true;
         warnings.push('Внимание: GD Song нужно сдвинуть на ' + semis(d) + ', это больше вашей границы ±' + pitchLimit +
-          '. Звук может исказиться. Если не хотите так сильно менять питч, выберите другую песню.');
+          '. Звук может исказиться.');
       }
       semitones = d;
       keyNote = d === 0
@@ -315,7 +316,7 @@
       if (k !== 0) tempoNote += ' ' + (k > 0 ? 'Темп GD Song вдвое' : 'Темп обычной песни вдвое') + ' выше, это считается совпадением.';
       if (pct > 25) warnings.push('Темп меняется сильно, качество звука может ухудшиться.');
     }
-    return { semitones, tempoFactor: Math.abs(tempoFactor - 1) < 0.0005 ? 1 : tempoFactor, keyNote, tempoNote, warnings };
+    return { overLimit, semitones, tempoFactor: Math.abs(tempoFactor - 1) < 0.0005 ? 1 : tempoFactor, keyNote, tempoNote, warnings };
   }
 
   const api = { NOTE_NAMES, fft, toMono, detectKey, detectBpm, resolveKey, effectiveBpm, plan, keyName };

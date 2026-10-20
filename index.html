@@ -84,6 +84,14 @@
 
   <div id="error" class="error" role="alert" hidden></div>
 
+  <div id="confirm" class="confirm" role="alertdialog" aria-labelledby="confirm-text" hidden>
+    <p id="confirm-text"></p>
+    <div class="btns">
+      <button type="button" id="confirm-yes" class="btn">Всё равно подогнать</button>
+      <button type="button" id="confirm-no" class="btn">Отмена</button>
+    </div>
+  </div>
+
   <section id="result" hidden aria-live="polite">
     <h2 class="section-title">Результат</h2>
     <ul class="plan" id="plan"></ul>
