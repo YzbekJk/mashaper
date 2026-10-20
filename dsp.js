@@ -3,6 +3,7 @@
   'use strict';
 
   const tick = () => new Promise((r) => setTimeout(r, 0));
+  const fftFn = typeof require !== 'undefined' ? require('./analysis.js').fft : root.MashaperAnalysis.fft;
 
   function hannPeriodic(n) {
     const w = new Float32Array(n);
@@ -126,7 +127,73 @@
     return stretched.map((c) => resample(c, rho));
   }
 
-  const api = { timeStretch, resample, pitchShift };
+
+  /**
+   * Убирает инструментал: оставляет то, что стоит по центру стереопанорамы (обычно вокал).
+   * Это не нейросеть: инструменты по центру (бас, бочка) частично остаются.
+   * Возвращает { channels, sideRatio }. Для моно-записи бросает ошибку.
+   */
+  async function removeInstrumental(chs, sr, onProgress) {
+    if (chs.length < 2) throw new Error('Песня моно, вокал по центру отделить нельзя.');
+    const L = chs[0], R = chs[1], len = L.length;
+    // доля энергии "боковой" части: если она крошечная, запись почти моно
+    let em = 0, es = 0;
+    for (let i = 0; i < len; i += 7) { const m = L[i] + R[i], d = L[i] - R[i]; em += m * m; es += d * d; }
+    const sideRatio = em > 0 ? es / em : 0;
+    if (sideRatio < 1e-4) throw new Error('Песня почти моно, вокал отделить нельзя.');
+
+    const N = 4096, H = N / 4;
+    const win = new Float64Array(N);
+    for (let i = 0; i < N; i++) win[i] = Math.sqrt(0.5 - 0.5 * Math.cos(2 * Math.PI * i / N));
+    const hp = new Float64Array(N / 2 + 1);
+    for (let k = 0; k <= N / 2; k++) {
+      const f = k * sr / N;
+      hp[k] = f <= 80 ? 0 : f >= 160 ? 1 : (f - 80) / 80;
+    }
+    const outLen = len;
+    const out = new Float32Array(outLen + N);
+    const lr = new Float64Array(N), li = new Float64Array(N), rr = new Float64Array(N), ri = new Float64Array(N);
+    const yr = new Float64Array(N), yi = new Float64Array(N);
+    const frames = Math.ceil((len + N) / H);
+    let last = Date.now();
+    for (let f = 0; f < frames; f++) {
+      const start = f * H - N + H; // кадры начинаются до начала сигнала, чтобы края были покрыты
+      for (let i = 0; i < N; i++) {
+        const p = start + i;
+        const a = p >= 0 && p < len ? win[i] : 0;
+        lr[i] = a ? L[p] * a : 0; li[i] = 0;
+        rr[i] = a ? R[p] * a : 0; ri[i] = 0;
+      }
+      fftFn(lr, li); fftFn(rr, ri);
+      for (let k = 0; k <= N / 2; k++) {
+        const mr = 0.5 * (lr[k] + rr[k]), mi = 0.5 * (li[k] + ri[k]);
+        const dr = lr[k] - rr[k], di = li[k] - ri[k];
+        const diff = Math.sqrt(dr * dr + di * di);
+        const tot = Math.sqrt(lr[k] * lr[k] + li[k] * li[k]) + Math.sqrt(rr[k] * rr[k] + ri[k] * ri[k]) + 1e-12;
+        let sim = 1 - diff / tot;
+        if (sim < 0) sim = 0;
+        const g = sim * sim * hp[k];
+        yr[k] = mr * g; yi[k] = mi * g;
+        if (k > 0 && k < N / 2) { yr[N - k] = yr[k]; yi[N - k] = -yi[k]; }
+      }
+      // обратное БПФ через сопряжение
+      for (let k = 0; k < N; k++) yi[k] = -yi[k];
+      fftFn(yr, yi);
+      for (let i = 0; i < N; i++) {
+        const p = start + i;
+        if (p >= 0 && p < outLen) out[p] += (yr[i] / N) * win[i] * 0.5;
+      }
+      if ((f & 63) === 0 && Date.now() - last > 40) {
+        if (onProgress) onProgress(f / frames);
+        await tick(); last = Date.now();
+      }
+    }
+    if (onProgress) onProgress(1);
+    const mono = out.subarray(0, outLen);
+    return { channels: [mono, mono.slice()], sideRatio };
+  }
+
+  const api = { timeStretch, resample, pitchShift, removeInstrumental };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.MashaperDsp = api;
 })(typeof self !== 'undefined' ? self : this);

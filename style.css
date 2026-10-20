@@ -156,4 +156,8 @@ footer { color: var(--muted); font-size: 0.8125rem; }
 .confirm p { margin: 0; font-weight: 500; }
 .confirm .btns { display: flex; flex-wrap: wrap; gap: 8px; }
 
+.strip { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line); padding-top: 12px; }
+.check { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; font-weight: 500; }
+.check input { width: 20px; height: 20px; margin: 2px 0 0; flex: none; accent-color: var(--accent); }
+
 [hidden] { display: none !important; }
