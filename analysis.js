@@ -292,11 +292,8 @@
       let d = (((rk.tonic - gk.tonic) % 12) + 12) % 12;
       if (d > 6) d -= 12;
       if (Math.abs(d) > pitchLimit) {
-        return {
-          error: 'Ошибка: GD Song (' + keyName(gk) + ') нужно сдвинуть на ' + semis(d) +
-            ', чтобы попасть в ' + keyName(rk) + ', а лимит питча ±' + pitchLimit +
-            '. Увеличьте лимит в настройках или выберите другую песню.',
-        };
+        warnings.push('Внимание: GD Song нужно сдвинуть на ' + semis(d) + ', это больше вашей границы ±' + pitchLimit +
+          '. Звук может исказиться. Если не хотите так сильно менять питч, выберите другую песню.');
       }
       semitones = d;
       keyNote = d === 0
