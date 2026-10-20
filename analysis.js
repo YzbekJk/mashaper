@@ -293,8 +293,8 @@
       if (d > 6) d -= 12;
       if (Math.abs(d) > pitchLimit) {
         return {
-          error: 'Ошибка: GD Song (' + keyName(gk) + ') нужно сдвинуть на ' + (d > 0 ? '+' : '') + d +
-            ' полутонов, чтобы попасть в ' + keyName(rk) + ', а лимит питча ±' + pitchLimit +
+          error: 'Ошибка: GD Song (' + keyName(gk) + ') нужно сдвинуть на ' + semis(d) +
+            ', чтобы попасть в ' + keyName(rk) + ', а лимит питча ±' + pitchLimit +
             '. Увеличьте лимит в настройках или выберите другую песню.',
         };
       }
