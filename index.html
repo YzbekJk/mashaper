@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Мэшапер</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600&display=swap">
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #F1F2F7;
+    --fg: #14161F;
+    --accent: #D6226F;
+    --font-display: "Unbounded", "Arial Black", "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --bg: #0E0F16;
+      --fg: #ECEDF4;
+      --accent: #FF5C9E;
+    }
+  }
+  html, body { height: 100%; margin: 0; }
+  body {
+    box-sizing: border-box;
+    background: var(--bg);
+    color: var(--fg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+  }
+  h1 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: clamp(2.25rem, 11vw, 7rem);
+    line-height: 1;
+    letter-spacing: -0.03em;
+    text-align: center;
+    text-wrap: balance;
+    overflow-wrap: anywhere;
+  }
+  h1 span { color: var(--accent); }
+</style>
+</head>
+<body>
+<h1>Мэш<span>апер</span></h1>
+</body>
+</html>
