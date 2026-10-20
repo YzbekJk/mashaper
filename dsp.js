@@ -135,12 +135,12 @@
    * Для моно-записи бросает ошибку.
    */
   async function removeInstrumental(chs, sr, onProgress) {
-    if (chs.length < 2) throw new Error('Песня моно, вокал по центру отделить нельзя.');
+    if (chs.length < 2) { const e = new Error('Песня моно.'); e.mono = true; throw e; }
     const L = chs[0], R = chs[1], len = L.length;
     let em = 0, es = 0;
     for (let i = 0; i < len; i += 7) { const m = L[i] + R[i], d = L[i] - R[i]; em += m * m; es += d * d; }
     const sideRatio = em > 0 ? es / em : 0;
-    if (sideRatio < 1e-4) throw new Error('Песня почти моно, вокал отделить нельзя.');
+    if (sideRatio < 1e-4) { const e = new Error('Песня почти моно.'); e.mono = true; throw e; }
 
     const N = 4096, H = N / 4, K = Math.min(N / 2 - 1, Math.floor(10000 * N / sr));
     const win = new Float64Array(N);

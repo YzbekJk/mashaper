@@ -85,72 +85,87 @@
     return da > 0 && db > 0 ? num / Math.sqrt(da * db) : 0;
   }
 
-  function chromaFromSpectrum(spec, sr, N, tuning) {
-    const chroma = new Float64Array(12);
-    const kmin = Math.ceil(70 * N / sr), kmax = Math.min(N / 2 - 1, Math.floor(2100 * N / sr));
+  /** Находит спектральные пики кадра: [[частота, относительная амплитуда], ...]. */
+  function spectralPeaks(mag, sr, N, fmin, fmax) {
+    const out = [];
+    const kmin = Math.max(2, Math.ceil(fmin * N / sr)), kmax = Math.min(N / 2 - 2, Math.floor(fmax * N / sr));
+    let mx = 0;
+    for (let k = kmin; k <= kmax; k++) if (mag[k] > mx) mx = mag[k];
+    if (mx <= 0) return out;
+    const thr = mx * 0.02;
     for (let k = kmin; k <= kmax; k++) {
-      const f = k * sr / N;
-      const midi = 69 + 12 * Math.log2(f / 440) - tuning;
-      const r = Math.round(midi);
-      const dev = midi - r;
-      const w = Math.cos(Math.PI * dev) ** 2;
-      chroma[((r % 12) + 12) % 12] += w * spec[k];
+      const b = mag[k];
+      if (b > thr && b > mag[k - 1] && b >= mag[k + 1]) {
+        const a = mag[k - 1], c = mag[k + 1], den = a - 2 * b + c;
+        const d = den < 0 ? 0.5 * (a - c) / den : 0;
+        out.push([(k + d) * sr / N, b / mx]);
+      }
     }
-    return chroma;
+    return out;
   }
 
-  /** Определяет тональность по средней хромаграмме (профили Краусса-Кесслера). */
+  /**
+   * Определяет тональность: пики спектра, оценка строя, хромаграмма с учётом гармоник,
+   * сравнение с профилями Краусса-Кесслера. Возвращает лучший вариант и список альтернатив.
+   */
   function detectKey(mono) {
     const { data, sr } = mono;
     const N = 8192, hop = N / 2;
     const total = Math.floor((data.length - N) / hop) + 1;
-    if (total < 4) return { tonic: 0, mode: 'major', score: 0, tuning: 0 };
-    const maxFrames = 500;
-    const idxs = [];
-    for (let i = 0; i < Math.min(total, maxFrames); i++) {
-      idxs.push(Math.floor(i * total / Math.min(total, maxFrames)));
-    }
+    if (total < 4) return { tonic: 0, mode: 'major', score: 0, tuning: 0, alternatives: [] };
+    const nF = Math.min(total, 400);
     const win = hann(N);
     const re = new Float64Array(N), im = new Float64Array(N);
-    const spec = new Float64Array(N / 2);
-    const energies = [];
-    const frames = [];
-    for (const f of idxs) {
+    const frames = [], energies = [];
+    for (let j = 0; j < nF; j++) {
+      const f = Math.floor(j * total / nF);
       let e = 0;
-      for (let i = 0; i < N; i++) {
-        const v = data[f * hop + i];
-        re[i] = v * win[i]; im[i] = 0; e += v * v;
-      }
+      for (let i = 0; i < N; i++) { const v = data[f * hop + i]; re[i] = v * win[i]; im[i] = 0; e += v * v; }
       fft(re, im);
       const mag = new Float32Array(N / 2);
-      for (let k = 0; k < N / 2; k++) mag[k] = Math.sqrt(Math.sqrt(re[k] * re[k] + im[k] * im[k]));
+      for (let k = 0; k < N / 2; k++) mag[k] = Math.sqrt(re[k] * re[k] + im[k] * im[k]);
       frames.push(mag); energies.push(e);
     }
-    const sorted = energies.slice().sort((a, b) => a - b);
-    const med = sorted[Math.floor(sorted.length / 2)];
-    for (let j = 0; j < frames.length; j++) {
-      if (energies[j] < med * 0.05 || energies[j] <= 1e-9) continue;
-      const mag = frames[j];
-      let sum = 0;
-      for (let k = 0; k < N / 2; k++) sum += mag[k];
-      if (sum <= 0) continue;
-      for (let k = 0; k < N / 2; k++) spec[k] += mag[k] / sum;
+    const med = energies.slice().sort((a, b) => a - b)[Math.floor(energies.length / 2)];
+    const peaks = [];
+    frames.forEach((mag, j) => {
+      if (energies[j] < med * 0.05 || energies[j] <= 1e-9) return;
+      peaks.push(spectralPeaks(mag, sr, N, 80, 2000));
+    });
+    // отклонение строя от A440 (в полутонах)
+    let cs = 0, sn = 0;
+    for (const pk of peaks) for (const [f, w] of pk) {
+      const p = 69 + 12 * Math.log2(f / 440), dev = p - Math.round(p);
+      cs += w * Math.cos(2 * Math.PI * dev); sn += w * Math.sin(2 * Math.PI * dev);
     }
-
-    let best = { score: -2 };
-    for (const tuning of [-0.3, -0.15, 0, 0.15, 0.3]) {
-      const chroma = chromaFromSpectrum(spec, sr, N, tuning);
-      for (let tonic = 0; tonic < 12; tonic++) {
-        for (const mode of ['major', 'minor']) {
-          const prof = mode === 'major' ? KK_MAJOR : KK_MINOR;
-          const rotated = new Array(12);
-          for (let i = 0; i < 12; i++) rotated[i] = prof[((i - tonic) % 12 + 12) % 12];
-          const score = pearson(Array.from(chroma), rotated);
-          if (score > best.score) best = { tonic, mode, score, tuning };
-        }
+    const tuning = Math.atan2(sn, cs) / (2 * Math.PI);
+    const chroma = new Float64Array(12);
+    const add = (arr, f, w) => {
+      const p = 69 + 12 * Math.log2(f / 440) - tuning, r = Math.round(p), dev = p - r;
+      arr[((r % 12) + 12) % 12] += w * Math.cos(Math.PI * dev) ** 2;
+    };
+    for (const pk of peaks) {
+      const loc = new Float64Array(12);
+      for (const [f, w] of pk) {
+        const ww = Math.sqrt(w);
+        add(loc, f, ww);
+        if (f / 2 >= 40) add(loc, f / 2, ww * 0.5); // пик может быть второй гармоникой
+      }
+      let sum = 0;
+      for (let i = 0; i < 12; i++) sum += loc[i];
+      if (sum > 0) for (let i = 0; i < 12; i++) chroma[i] += loc[i] / sum;
+    }
+    const all = [];
+    for (let tonic = 0; tonic < 12; tonic++) {
+      for (const mode of ['major', 'minor']) {
+        const prof = mode === 'major' ? KK_MAJOR : KK_MINOR;
+        const rotated = new Array(12);
+        for (let i = 0; i < 12; i++) rotated[i] = prof[((i - tonic) % 12 + 12) % 12];
+        all.push({ tonic, mode, score: pearson(Array.from(chroma), rotated) });
       }
     }
-    return best;
+    all.sort((a, b) => b.score - a.score);
+    return { tonic: all[0].tonic, mode: all[0].mode, score: all[0].score, tuning, alternatives: all.slice(1, 3) };
   }
 
   // ---------- BPM ----------
@@ -246,14 +261,14 @@
 
   function keyName(k) { return NOTE_NAMES[k.tonic] + ' ' + k.mode; }
 
-  function resolveKey(song, threshold) {
+  function resolveKey(song, threshold, mustHaveKey) {
     const o = song.keyOverride || 'auto';
-    if (o === 'none') return { keyless: true, source: 'manual' };
-    if (o !== 'auto') {
+    if (o === 'none' && !mustHaveKey) return { keyless: true, source: 'manual' };
+    if (o !== 'auto' && o !== 'none') {
       const [t, m] = o.split('-');
       return { keyless: false, tonic: +t, mode: m, source: 'manual' };
     }
-    if (!song.key || song.key.score < threshold) {
+    if (!song.key || (!mustHaveKey && song.key.score < threshold)) {
       return { keyless: true, source: 'auto', score: song.key ? song.key.score : 0 };
     }
     return { keyless: false, tonic: song.key.tonic, mode: song.key.mode, source: 'auto', score: song.key.score };
@@ -269,7 +284,7 @@
    */
   function plan(gd, reg, opts) {
     const { pitchLimit, keyThreshold } = opts;
-    const gk = resolveKey(gd, keyThreshold), rk = resolveKey(reg, keyThreshold);
+    const gk = resolveKey(gd, keyThreshold, true), rk = resolveKey(reg, keyThreshold, false);
     const gBpm = effectiveBpm(gd), rBpm = effectiveBpm(reg);
     if (!(gBpm > 0) || !(rBpm > 0)) {
       return { error: 'Не удалось определить BPM. Введите его вручную.' };
