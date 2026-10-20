@@ -6,48 +6,99 @@
 <title>Мэшапер</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600&display=swap">
-<style>
-  :root {
-    color-scheme: light;
-    --bg: #F1F2F7;
-    --fg: #14161F;
-    --accent: #D6226F;
-    --font-display: "Unbounded", "Arial Black", "Helvetica Neue", Arial, sans-serif;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      color-scheme: dark;
-      --bg: #0E0F16;
-      --fg: #ECEDF4;
-      --accent: #FF5C9E;
-    }
-  }
-  html, body { height: 100%; margin: 0; }
-  body {
-    box-sizing: border-box;
-    background: var(--bg);
-    color: var(--fg);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 24px 16px;
-  }
-  h1 {
-    margin: 0;
-    font-family: var(--font-display);
-    font-weight: 600;
-    font-size: clamp(2.25rem, 11vw, 7rem);
-    line-height: 1;
-    letter-spacing: -0.03em;
-    text-align: center;
-    text-wrap: balance;
-    overflow-wrap: anywhere;
-  }
-  h1 span { color: var(--accent); }
-</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700&family=JetBrains+Mono:wght@500&family=Unbounded:wght@600&display=swap">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-<h1>Мэш<span>апер</span></h1>
+<main>
+  <header>
+    <h1>Мэш<span>апер</span></h1>
+    <p class="lead">Загрузите GD Song и обычную песню. Мэшапер подгонит тональность GD Song и темп обычной песни.</p>
+  </header>
+
+  <section class="songs" aria-label="Песни">
+    <article class="song" id="song-gd">
+      <h2>GD Song</h2>
+      <label class="pick" for="file-gd">
+        <input type="file" id="file-gd" accept="audio/*,.mp3,.ogg,.wav,.m4a,.flac">
+        <span class="pick-name" id="name-gd">Выбрать файл</span>
+      </label>
+      <p class="status" id="status-gd" role="status"></p>
+      <div class="fields" id="fields-gd" hidden>
+        <div class="field">
+          <label for="key-gd">Тональность</label>
+          <select id="key-gd"></select>
+          <output id="keyinfo-gd"></output>
+        </div>
+        <div class="field">
+          <label for="bpm-gd">BPM</label>
+          <input id="bpm-gd" type="number" inputmode="decimal" min="30" max="300" step="0.1">
+          <output id="bpminfo-gd"></output>
+        </div>
+      </div>
+    </article>
+
+    <article class="song" id="song-reg">
+      <h2>Обычная песня</h2>
+      <label class="pick" for="file-reg">
+        <input type="file" id="file-reg" accept="audio/*,.mp3,.ogg,.wav,.m4a,.flac">
+        <span class="pick-name" id="name-reg">Выбрать файл</span>
+      </label>
+      <p class="status" id="status-reg" role="status"></p>
+      <div class="fields" id="fields-reg" hidden>
+        <div class="field">
+          <label for="key-reg">Тональность</label>
+          <select id="key-reg"></select>
+          <output id="keyinfo-reg"></output>
+        </div>
+        <div class="field">
+          <label for="bpm-reg">BPM</label>
+          <input id="bpm-reg" type="number" inputmode="decimal" min="30" max="300" step="0.1">
+          <output id="bpminfo-reg"></output>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <details class="settings">
+    <summary>Настройки</summary>
+    <div class="setting">
+      <label for="pitch-limit">Лимит питча</label>
+      <div class="range-row">
+        <input id="pitch-limit" type="range" min="0" max="6" step="1" value="4">
+        <output id="pitch-limit-out" for="pitch-limit">±4 полутона</output>
+      </div>
+      <p class="hint">Если GD Song нужно сдвинуть дальше этого значения, вы получите ошибку.</p>
+    </div>
+    <div class="setting">
+      <label for="key-threshold">Порог тональности</label>
+      <div class="range-row">
+        <input id="key-threshold" type="range" min="0.3" max="0.9" step="0.05" value="0.6">
+        <output id="key-threshold-out" for="key-threshold">0.60</output>
+      </div>
+      <p class="hint">Песня с уверенностью ниже порога считается без тональности, и питч не меняется. Тональность можно также выбрать вручную.</p>
+    </div>
+  </details>
+
+  <button type="button" id="run" class="primary" disabled>Подогнать</button>
+
+  <div id="error" class="error" role="alert" hidden></div>
+
+  <section id="result" hidden aria-live="polite">
+    <h2 class="section-title">Результат</h2>
+    <ul class="plan" id="plan"></ul>
+    <div class="progress" id="progress" hidden>
+      <div class="progress-label" id="progress-label"></div>
+      <progress id="progress-bar" max="1" value="0"></progress>
+    </div>
+    <div class="outputs" id="outputs"></div>
+  </section>
+
+  <footer>Всё считается в вашем браузере, файлы никуда не отправляются.</footer>
+</main>
+<script src="analysis.js"></script>
+<script src="dsp.js"></script>
+<script src="audio-out.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
