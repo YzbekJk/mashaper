@@ -129,67 +129,64 @@
 
 
   /**
-   * Убирает инструментал: оставляет то, что стоит по центру стереопанорамы (обычно вокал).
-   * Это не нейросеть: инструменты по центру (бас, бочка) частично остаются.
-   * Возвращает { channels, sideRatio }. Для моно-записи бросает ошибку.
+   * Убирает инструментал: оставляет то, что звучит по центру стереопанорамы (обычно вокал),
+   * гасит боковые инструменты и бас ниже ~250 Гц.
+   * Это не нейросеть: ударные, синтезаторы и другие инструменты по центру останутся.
+   * Для моно-записи бросает ошибку.
    */
   async function removeInstrumental(chs, sr, onProgress) {
     if (chs.length < 2) throw new Error('Песня моно, вокал по центру отделить нельзя.');
     const L = chs[0], R = chs[1], len = L.length;
-    // доля энергии "боковой" части: если она крошечная, запись почти моно
     let em = 0, es = 0;
     for (let i = 0; i < len; i += 7) { const m = L[i] + R[i], d = L[i] - R[i]; em += m * m; es += d * d; }
     const sideRatio = em > 0 ? es / em : 0;
     if (sideRatio < 1e-4) throw new Error('Песня почти моно, вокал отделить нельзя.');
 
-    const N = 4096, H = N / 4;
+    const N = 4096, H = N / 4, K = Math.min(N / 2 - 1, Math.floor(10000 * N / sr));
     const win = new Float64Array(N);
     for (let i = 0; i < N; i++) win[i] = Math.sqrt(0.5 - 0.5 * Math.cos(2 * Math.PI * i / N));
-    const hp = new Float64Array(N / 2 + 1);
-    for (let k = 0; k <= N / 2; k++) {
+    const hp = new Float64Array(K + 1);
+    for (let k = 0; k <= K; k++) {
       const f = k * sr / N;
-      hp[k] = f <= 80 ? 0 : f >= 160 ? 1 : (f - 80) / 80;
+      hp[k] = f <= 120 ? 0 : f >= 260 ? 1 : (f - 120) / 140;
     }
-    const outLen = len;
-    const out = new Float32Array(outLen + N);
+    const out = new Float32Array(len + N);
     const lr = new Float64Array(N), li = new Float64Array(N), rr = new Float64Array(N), ri = new Float64Array(N);
     const yr = new Float64Array(N), yi = new Float64Array(N);
-    const frames = Math.ceil((len + N) / H);
+    const total = Math.ceil((len + N) / H);
     let last = Date.now();
-    for (let f = 0; f < frames; f++) {
-      const start = f * H - N + H; // кадры начинаются до начала сигнала, чтобы края были покрыты
+    for (let f = 0; f < total; f++) {
+      const start = f * H - N + H;
       for (let i = 0; i < N; i++) {
         const p = start + i;
-        const a = p >= 0 && p < len ? win[i] : 0;
-        lr[i] = a ? L[p] * a : 0; li[i] = 0;
-        rr[i] = a ? R[p] * a : 0; ri[i] = 0;
+        if (p >= 0 && p < len) { lr[i] = L[p] * win[i]; rr[i] = R[p] * win[i]; } else { lr[i] = 0; rr[i] = 0; }
+        li[i] = 0; ri[i] = 0;
       }
       fftFn(lr, li); fftFn(rr, ri);
-      for (let k = 0; k <= N / 2; k++) {
-        const mr = 0.5 * (lr[k] + rr[k]), mi = 0.5 * (li[k] + ri[k]);
+      yr.fill(0); yi.fill(0);
+      for (let k = 1; k <= K; k++) {
+        if (hp[k] === 0) continue;
         const dr = lr[k] - rr[k], di = li[k] - ri[k];
-        const diff = Math.sqrt(dr * dr + di * di);
-        const tot = Math.sqrt(lr[k] * lr[k] + li[k] * li[k]) + Math.sqrt(rr[k] * rr[k] + ri[k] * ri[k]) + 1e-12;
-        let sim = 1 - diff / tot;
+        const tot = Math.hypot(lr[k], li[k]) + Math.hypot(rr[k], ri[k]) + 1e-12;
+        let sim = 1 - Math.hypot(dr, di) / tot;
         if (sim < 0) sim = 0;
         const g = sim * sim * hp[k];
-        yr[k] = mr * g; yi[k] = mi * g;
-        if (k > 0 && k < N / 2) { yr[N - k] = yr[k]; yi[N - k] = -yi[k]; }
+        yr[k] = 0.5 * (lr[k] + rr[k]) * g; yi[k] = 0.5 * (li[k] + ri[k]) * g;
+        yr[N - k] = yr[k]; yi[N - k] = -yi[k];
       }
-      // обратное БПФ через сопряжение
       for (let k = 0; k < N; k++) yi[k] = -yi[k];
       fftFn(yr, yi);
       for (let i = 0; i < N; i++) {
         const p = start + i;
-        if (p >= 0 && p < outLen) out[p] += (yr[i] / N) * win[i] * 0.5;
+        if (p >= 0 && p < len) out[p] += (yr[i] / N) * win[i] * 0.5;
       }
       if ((f & 63) === 0 && Date.now() - last > 40) {
-        if (onProgress) onProgress(f / frames);
+        if (onProgress) onProgress(f / total);
         await tick(); last = Date.now();
       }
     }
     if (onProgress) onProgress(1);
-    const mono = out.subarray(0, outLen);
+    const mono = out.subarray(0, len);
     return { channels: [mono, mono.slice()], sideRatio };
   }
 
