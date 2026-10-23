@@ -160,4 +160,7 @@ footer { color: var(--muted); font-size: 0.8125rem; }
 .check { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; font-weight: 500; }
 .check input { width: 20px; height: 20px; margin: 2px 0 0; flex: none; accent-color: var(--accent); }
 
+.key-changes { margin: 0; font-size: 0.8125rem; color: var(--muted); }
+.key-changes.has-changes { color: var(--fg); font-weight: 500; border-left: 3px solid var(--accent); padding-left: 10px; }
+
 [hidden] { display: none !important; }

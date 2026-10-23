@@ -105,56 +105,7 @@
     return out;
   }
 
-  /**
-   * Определяет тональность: пики спектра, оценка строя, хромаграмма с учётом гармоник,
-   * сравнение с профилями Краусса-Кесслера. Возвращает лучший вариант и список альтернатив.
-   */
-  function detectKey(mono) {
-    const { data, sr } = mono;
-    const N = 8192, hop = N / 2;
-    const total = Math.floor((data.length - N) / hop) + 1;
-    if (total < 4) return { tonic: 0, mode: 'major', score: 0, tuning: 0, alternatives: [] };
-    const nF = Math.min(total, 400);
-    const win = hann(N);
-    const re = new Float64Array(N), im = new Float64Array(N);
-    const frames = [], energies = [];
-    for (let j = 0; j < nF; j++) {
-      const f = Math.floor(j * total / nF);
-      let e = 0;
-      for (let i = 0; i < N; i++) { const v = data[f * hop + i]; re[i] = v * win[i]; im[i] = 0; e += v * v; }
-      fft(re, im);
-      const mag = new Float32Array(N / 2);
-      for (let k = 0; k < N / 2; k++) mag[k] = Math.sqrt(re[k] * re[k] + im[k] * im[k]);
-      frames.push(mag); energies.push(e);
-    }
-    const med = energies.slice().sort((a, b) => a - b)[Math.floor(energies.length / 2)];
-    const peaks = [];
-    frames.forEach((mag, j) => {
-      if (energies[j] < med * 0.05 || energies[j] <= 1e-9) return;
-      peaks.push(spectralPeaks(mag, sr, N, 55, 3500));
-    });
-    // отклонение строя от A440 (в полутонах)
-    let cs = 0, sn = 0;
-    for (const pk of peaks) for (const [f, w] of pk) {
-      const p = 69 + 12 * Math.log2(f / 440), dev = p - Math.round(p);
-      cs += w * Math.cos(2 * Math.PI * dev); sn += w * Math.sin(2 * Math.PI * dev);
-    }
-    const tuning = Math.atan2(sn, cs) / (2 * Math.PI);
-    const chroma = new Float64Array(12);
-    const add = (arr, f, w) => {
-      const p = 69 + 12 * Math.log2(f / 440) - tuning, r = Math.round(p), dev = p - r;
-      arr[((r % 12) + 12) % 12] += w * Math.cos(Math.PI * dev) ** 2;
-    };
-    for (const pk of peaks) {
-      const loc = new Float64Array(12);
-      for (const [f, w] of pk) {
-        const ww = Math.sqrt(w);
-        add(loc, f, ww);
-      }
-      let sum = 0;
-      for (let i = 0; i < 12; i++) sum += loc[i];
-      if (sum > 0) for (let i = 0; i < 12; i++) chroma[i] += loc[i] / sum;
-    }
+  function scoreKeys(chroma) {
     const all = [];
     for (let tonic = 0; tonic < 12; tonic++) {
       for (const mode of ['major', 'minor']) {
@@ -164,20 +115,197 @@
         all.push({ tonic, mode, score: pearson(Array.from(chroma), rotated) });
       }
     }
-    all.sort((a, b) => b.score - a.score);
+    return all.sort((a, b) => b.score - a.score);
+  }
+
+  /** Выбирает тональность по хромаграмме. restrictSet: номер мажорной гаммы (0-11), если набор нот уже известен. */
+  function keyFromChroma(chroma, tuning, restrictSet) {
+    let all = scoreKeys(chroma);
+    if (restrictSet !== undefined) {
+      all = all.filter((k) => (k.mode === 'major' ? k.tonic : (k.tonic + 3) % 12) === restrictSet);
+    }
     let best = all[0];
     // Если у тоники не слышно, какая терция (малая или большая), лад не определить по нотам.
     // Тогда выбираем минор: так чаще бывает в электронной музыке и в GD.
     const t = best.tonic, minorThird = chroma[(t + 3) % 12], majorThird = chroma[(t + 4) % 12];
     const thirdRatio = Math.max(minorThird, majorThird) / Math.max(1e-9, Math.min(minorThird, majorThird));
     let ambiguousMode = false;
-    if (thirdRatio < 1.25) {
+    if (thirdRatio < 1.25 && restrictSet === undefined) {
       ambiguousMode = true;
       best = all.find((k) => k.tonic === t && k.mode === 'minor');
     }
     const alternatives = all.filter((k) => k !== best).slice(0, 2);
     return { tonic: best.tonic, mode: best.mode, score: best.score, tuning, ambiguousMode, alternatives };
   }
+
+  /** Хромаграмма каждого кадра: пики спектра, оценка строя, учёт близости к полутонам. */
+  function keyFrames(mono) {
+    const { data, sr } = mono;
+    const N = 8192;
+    const hop = Math.max(N / 2, Math.ceil((data.length - N) / 1600));
+    const total = Math.floor((data.length - N) / hop) + 1;
+    if (total < 4) return null;
+    const win = hann(N);
+    const re = new Float64Array(N), im = new Float64Array(N);
+    const frames = [];
+    for (let f = 0; f < total; f++) {
+      let e = 0;
+      for (let i = 0; i < N; i++) { const v = data[f * hop + i]; re[i] = v * win[i]; im[i] = 0; e += v * v; }
+      fft(re, im);
+      const mag = new Float32Array(N / 2);
+      for (let k = 0; k < N / 2; k++) mag[k] = Math.sqrt(re[k] * re[k] + im[k] * im[k]);
+      frames.push({ e, peaks: spectralPeaks(mag, sr, N, 55, 3500) });
+    }
+    const sorted = frames.map((x) => x.e).sort((a, b) => a - b);
+    const med = sorted[Math.floor(sorted.length / 2)];
+    let cs = 0, sn = 0;
+    for (const fr of frames) {
+      if (fr.e < med * 0.05 || fr.e <= 1e-9) continue;
+      for (const [f, w] of fr.peaks) {
+        const p = 69 + 12 * Math.log2(f / 440), dev = p - Math.round(p);
+        cs += w * Math.cos(2 * Math.PI * dev); sn += w * Math.sin(2 * Math.PI * dev);
+      }
+    }
+    const tuning = Math.atan2(sn, cs) / (2 * Math.PI);
+    const out = [];
+    frames.forEach((fr, j) => {
+      const t = (j * hop + N / 2) / sr;
+      if (fr.e < med * 0.05 || fr.e <= 1e-9) { out.push({ t, chroma: null }); return; }
+      const loc = new Float64Array(12);
+      for (const [f, w] of fr.peaks) {
+        const p = 69 + 12 * Math.log2(f / 440) - tuning, r = Math.round(p), dev = p - r;
+        loc[((r % 12) + 12) % 12] += Math.sqrt(w) * Math.cos(Math.PI * dev) ** 2;
+      }
+      let sum = 0;
+      for (let i = 0; i < 12; i++) sum += loc[i];
+      if (sum > 0) for (let i = 0; i < 12; i++) loc[i] /= sum;
+      out.push({ t, chroma: sum > 0 ? loc : null });
+    });
+    return { frames: out, tuning, duration: data.length / sr };
+  }
+
+  function sumChroma(frames, t0, t1) {
+    const c = new Float64Array(12);
+    for (const fr of frames) if (fr.chroma && fr.t >= t0 && fr.t < t1) for (let i = 0; i < 12; i++) c[i] += fr.chroma[i];
+    return c;
+  }
+
+  /**
+   * Ищет смены тональности. Считает оценку для каждой из 12 гамм в скользящем окне,
+   * затем сглаживает путь (Витерби) со штрафом за переход. Относительные тональности
+   * (C major и A minor) состоят из одних нот, поэтому сменой не считаются.
+   */
+  function findKeyChanges(kf) {
+    const { frames, tuning, duration } = kf;
+    const STEP = 2, HALF = 5, PENALTY = 0.2, MIN_SEG = 15, MIN_MARGIN = 0.1;
+    const steps = Math.max(1, Math.floor(duration / STEP));
+    const emis = [];
+    for (let i = 0; i < steps; i++) {
+      const c = (i + 0.5) * STEP;
+      const chroma = sumChroma(frames, c - HALF, c + HALF);
+      const e = new Float64Array(12);
+      let any = false;
+      for (let i2 = 0; i2 < 12; i2++) if (chroma[i2] > 0) any = true;
+      if (any) {
+        for (const k of scoreKeys(chroma)) {
+          const set = k.mode === 'major' ? k.tonic : (k.tonic + 3) % 12;
+          if (k.score > e[set]) e[set] = k.score;
+        }
+      }
+      emis.push(e);
+    }
+    // Витерби
+    const best = [], from = [];
+    for (let i = 0; i < steps; i++) {
+      const b = new Float64Array(12), fr = new Int8Array(12);
+      for (let s = 0; s < 12; s++) {
+        if (i === 0) { b[s] = emis[0][s]; continue; }
+        let bestPrev = best[i - 1][s], arg = s;
+        for (let s2 = 0; s2 < 12; s2++) {
+          const v = best[i - 1][s2] - PENALTY;
+          if (v > bestPrev) { bestPrev = v; arg = s2; }
+        }
+        b[s] = bestPrev + emis[i][s]; fr[s] = arg;
+      }
+      best.push(b); from.push(fr);
+    }
+    let s = 0;
+    for (let k = 1; k < 12; k++) if (best[steps - 1][k] > best[steps - 1][s]) s = k;
+    const path = new Array(steps);
+    for (let i = steps - 1; i >= 0; i--) { path[i] = s; if (i > 0) s = from[i][s]; }
+    let segs = [];
+    for (let i = 0; i < steps; i++) {
+      if (segs.length && segs[segs.length - 1].set === path[i]) segs[segs.length - 1].end = (i + 1) * STEP;
+      else segs.push({ set: path[i], start: i * STEP, end: (i + 1) * STEP });
+    }
+    segs[segs.length - 1].end = duration;
+    // короткие куски присоединяем к соседям
+    let changed = true;
+    while (changed && segs.length > 1) {
+      changed = false;
+      for (let i = 0; i < segs.length; i++) {
+        if (segs[i].end - segs[i].start < MIN_SEG) {
+          const j = i === 0 ? 1 : i - 1;
+          segs[j].start = Math.min(segs[j].start, segs[i].start);
+          segs[j].end = Math.max(segs[j].end, segs[i].end);
+          segs.splice(i, 1);
+          changed = true;
+          break;
+        }
+      }
+      for (let i = 1; i < segs.length; i++) {
+        if (segs[i].set === segs[i - 1].set) { segs[i - 1].end = segs[i].end; segs.splice(i, 1); i--; }
+      }
+    }
+    // Слабо подтверждённые куски (их набор нот почти не лучше соседнего) считаем шумом
+    const setScore = (chroma, set) => {
+      let b = -2;
+      for (const k of scoreKeys(chroma)) {
+        if ((k.mode === 'major' ? k.tonic : (k.tonic + 3) % 12) === set && k.score > b) b = k.score;
+      }
+      return b;
+    };
+    while (segs.length > 1) {
+      let worst = -1, worstMargin = Infinity, worstTarget = -1;
+      segs.forEach((sg, i) => {
+        const c = sumChroma(frames, sg.start, sg.end);
+        const own = setScore(c, sg.set);
+        for (const j of [i - 1, i + 1]) {
+          if (j < 0 || j >= segs.length || segs[j].set === sg.set) continue;
+          const margin = own - setScore(c, segs[j].set);
+          if (margin < worstMargin) { worstMargin = margin; worst = i; worstTarget = j; }
+        }
+      });
+      if (worst < 0 || worstMargin >= MIN_MARGIN) break;
+      const a = segs[worstTarget], b = segs[worst];
+      a.start = Math.min(a.start, b.start); a.end = Math.max(a.end, b.end);
+      segs.splice(worst, 1);
+      for (let i = 1; i < segs.length; i++) {
+        if (segs[i].set === segs[i - 1].set) { segs[i - 1].end = segs[i].end; segs.splice(i, 1); i--; }
+      }
+    }
+    return segs.map((sg) => {
+      const key = keyFromChroma(sumChroma(frames, sg.start, sg.end), tuning, segs.length > 1 ? sg.set : undefined);
+      return { start: sg.start, end: sg.end, key };
+    });
+  }
+
+  /** Возвращает { key, changes }: общая тональность и список смен (время в секундах). */
+  function analyzeKey(mono) {
+    const kf = keyFrames(mono);
+    if (!kf) return { key: { tonic: 0, mode: 'major', score: 0, tuning: 0, alternatives: [] }, changes: [], segments: [] };
+    const whole = keyFromChroma(sumChroma(kf.frames, 0, Infinity), kf.tuning);
+    const segments = findKeyChanges(kf);
+    if (segments.length <= 1) return { key: whole, changes: [], segments };
+    // основная тональность: самый длинный кусок
+    let main = segments[0];
+    for (const sg of segments) if (sg.end - sg.start > main.end - main.start) main = sg;
+    const changes = [];
+    for (let i = 1; i < segments.length; i++) changes.push({ time: segments[i].start, from: segments[i - 1].key, to: segments[i].key });
+    return { key: main.key, changes, segments };
+  }
+
+  function detectKey(mono) { return analyzeKey(mono).key; }
 
   // ---------- BPM ----------
   function onsetEnvelope(mono) {
@@ -345,7 +473,7 @@
     return { overLimit, semitones, tempoFactor: Math.abs(tempoFactor - 1) < 0.0005 ? 1 : tempoFactor, keyNote, tempoNote, warnings };
   }
 
-  const api = { NOTE_NAMES, fft, toMono, detectKey, detectBpm, resolveKey, effectiveBpm, plan, keyName };
+  const api = { NOTE_NAMES, fft, toMono, detectKey, analyzeKey, detectBpm, resolveKey, effectiveBpm, plan, keyName };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.MashaperAnalysis = api;
 })(typeof self !== 'undefined' ? self : this);

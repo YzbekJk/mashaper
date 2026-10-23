@@ -84,6 +84,22 @@
       out.textContent = 'Определено: ' + A.keyName(r) + ' (уверенность ' + score + ').' + altText;
     }
   }
+  function fmtTime(t) {
+    return Math.floor(t / 60) + ':' + String(Math.round(t % 60) % 60).padStart(2, '0');
+  }
+  function changeLines(song) {
+    return (song.keyChanges || []).map((c) => 'в ' + fmtTime(c.time) + ' с ' + A.keyName(c.from) + ' на ' + A.keyName(c.to));
+  }
+  function renderChanges(s) {
+    const song = state[s];
+    const el = $('changes-' + s);
+    if (!song) { el.textContent = ''; return; }
+    const lines = changeLines(song);
+    el.className = 'key-changes' + (lines.length ? ' has-changes' : '');
+    el.textContent = lines.length
+      ? 'Тональность меняется: ' + lines.join('; ') + '. Для подгонки беру основную: ' + A.keyName(song.key) + '.'
+      : 'Тональность не меняется.';
+  }
   function renderBpmInfo(s) {
     const song = state[s];
     const out = $('bpminfo-' + s);
@@ -132,14 +148,15 @@
       setStatus(s, 'Определяю тональность и BPM…');
       await tick(); await tick();
       const mono = A.toMono(audio.channels, audio.sampleRate);
-      const key = A.detectKey(mono);
+      const ak = A.analyzeKey(mono);
+      const key = ak.key;
       await tick();
       const bpm = A.detectBpm(mono);
       if (token !== loadToken[s]) return;
-      state[s] = { name: file.name, channels: audio.channels, sampleRate: audio.sampleRate, key, bpm, keyOverride: 'auto', bpmOverride: null };
+      state[s] = { name: file.name, channels: audio.channels, sampleRate: audio.sampleRate, key, keyChanges: ak.changes, bpm, keyOverride: 'auto', bpmOverride: null };
       $('key-' + s).value = 'auto';
       $('bpm-' + s).value = bpm.bpm ? bpm.bpm.toFixed(3) : '';
-      renderKeyInfo(s); renderBpmInfo(s);
+      renderKeyInfo(s); renderBpmInfo(s); renderChanges(s);
       $('fields-' + s).hidden = false;
       if (s === 'reg') { $('strip-wrap').hidden = false; }
       const mins = Math.floor(audio.channels[0].length / audio.sampleRate / 60);
@@ -240,6 +257,14 @@
       const li = document.createElement('li');
       li.textContent = t;
       if (res.warnings.includes(t)) li.className = 'warn';
+      plan.appendChild(li);
+    });
+    [['gd', gd], ['reg', reg]].forEach(([id, song]) => {
+      const lines = changeLines(song);
+      if (!lines.length) return;
+      const li = document.createElement('li');
+      li.className = 'warn';
+      li.textContent = LABEL[id] + ': тональность меняется ' + lines.join('; ') + '. Подгоняю по основной тональности ' + A.keyName(song.key) + '.';
       plan.appendChild(li);
     });
 
