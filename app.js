@@ -74,8 +74,7 @@
     if (!song || !song.key) { out.textContent = ''; return; }
     const r = A.resolveKey(song, +keyThreshold.value, s === 'gd');
     const score = song.key.score.toFixed(2);
-    const alts = (song.key.alternatives || []).map((k) => A.keyName(k) + ' ' + k.score.toFixed(2)).join(', ');
-    const altText = (song.key.ambiguousMode ? ' Терция неразличима, считаю минором.' : '') + (alts ? ' Похожие варианты: ' + alts + '.' : '');
+    const altText = song.key.ambiguousMode ? ' Терция неразличима, считаю минором.' : '';
     if (r.source === 'manual') {
       out.textContent = 'Задано вручную. Автоопределение: ' + A.keyName(song.key) + ' (' + score + ').';
     } else if (r.keyless) {
@@ -83,6 +82,31 @@
     } else {
       out.textContent = 'Определено: ' + A.keyName(r) + ' (уверенность ' + score + ').' + altText;
     }
+  }
+  function renderChips(s) {
+    const song = state[s];
+    const box = $('chips-' + s);
+    box.textContent = '';
+    const cands = song && song.key && song.key.candidates ? song.key.candidates : [];
+    if (!cands.length) { box.hidden = true; return; }
+    const label = document.createElement('small');
+    label.textContent = 'Если определено неверно, нажмите:';
+    label.style.flexBasis = '100%';
+    label.style.color = 'var(--muted)';
+    box.appendChild(label);
+    cands.forEach((k) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'chip';
+      b.textContent = A.keyName(k) + ' ';
+      if (k.tag) { const sm = document.createElement('small'); sm.textContent = k.tag; b.appendChild(sm); }
+      b.addEventListener('click', () => {
+        song.keyOverride = k.tonic + '-' + k.mode;
+        $('key-' + s).value = song.keyOverride;
+        renderKeyInfo(s);
+      });
+      box.appendChild(b);
+    });
+    box.hidden = false;
   }
   function fmtTime(t) {
     return Math.floor(t / 60) + ':' + String(Math.round(t % 60) % 60).padStart(2, '0');
@@ -156,7 +180,7 @@
       state[s] = { name: file.name, channels: audio.channels, sampleRate: audio.sampleRate, key, keyChanges: ak.changes, bpm, keyOverride: 'auto', bpmOverride: null };
       $('key-' + s).value = 'auto';
       $('bpm-' + s).value = bpm.bpm ? bpm.bpm.toFixed(3) : '';
-      renderKeyInfo(s); renderBpmInfo(s); renderChanges(s);
+      renderKeyInfo(s); renderBpmInfo(s); renderChanges(s); renderChips(s);
       $('fields-' + s).hidden = false;
       if (s === 'reg') { $('strip-wrap').hidden = false; }
       const mins = Math.floor(audio.channels[0].length / audio.sampleRate / 60);

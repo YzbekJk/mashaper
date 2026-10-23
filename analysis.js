@@ -170,16 +170,21 @@
     const out = [];
     frames.forEach((fr, j) => {
       const t = (j * hop + N / 2) / sr;
-      if (fr.e < med * 0.05 || fr.e <= 1e-9) { out.push({ t, chroma: null }); return; }
-      const loc = new Float64Array(12);
+      if (fr.e < med * 0.05 || fr.e <= 1e-9) { out.push({ t, chroma: null, bass: null }); return; }
+      const loc = new Float64Array(12), low = new Float64Array(12);
       for (const [f, w] of fr.peaks) {
         const p = 69 + 12 * Math.log2(f / 440) - tuning, r = Math.round(p), dev = p - r;
-        loc[((r % 12) + 12) % 12] += Math.sqrt(w) * Math.cos(Math.PI * dev) ** 2;
+        const v = Math.sqrt(w) * Math.cos(Math.PI * dev) ** 2;
+        loc[((r % 12) + 12) % 12] += v;
+        if (f < 250) low[((r % 12) + 12) % 12] += v;
       }
+      let sb = 0;
+      for (let i = 0; i < 12; i++) sb += low[i];
+      if (sb > 0) for (let i = 0; i < 12; i++) low[i] /= sb;
       let sum = 0;
       for (let i = 0; i < 12; i++) sum += loc[i];
       if (sum > 0) for (let i = 0; i < 12; i++) loc[i] /= sum;
-      out.push({ t, chroma: sum > 0 ? loc : null });
+      out.push({ t, chroma: sum > 0 ? loc : null, bass: sb > 0 ? low : null });
     });
     return { frames: out, tuning, duration: data.length / sr };
   }
@@ -290,19 +295,49 @@
     });
   }
 
+  /**
+   * Варианты для быстрого исправления: лучшие по ощущению нот плюс тональность с самой частой басовой нотой.
+   * Нужны, потому что по одним нотам тонику часто можно назвать по-разному.
+   */
+  function keyCandidates(frames, chosen) {
+    const chroma = sumChroma(frames, 0, Infinity);
+    const bass = new Float64Array(12);
+    for (const fr of frames) if (fr.bass) for (let i = 0; i < 12; i++) bass[i] += fr.bass[i];
+    let bassTonic = 0;
+    for (let i = 1; i < 12; i++) if (bass[i] > bass[bassTonic]) bassTonic = i;
+    const all = scoreKeys(chroma);
+    const same = (a, b) => a.tonic === b.tonic && a.mode === b.mode;
+    const list = [];
+    for (const k of all) {
+      if (same(k, chosen)) continue;
+      if (list.length < 3) list.push({ tonic: k.tonic, mode: k.mode, score: k.score, tag: '' });
+    }
+    const hasBass = list.some((k) => k.tonic === bassTonic) || chosen.tonic === bassTonic;
+    if (!hasBass) {
+      const k = all.find((x) => x.tonic === bassTonic && !same(x, chosen));
+      if (k) list.push({ tonic: k.tonic, mode: k.mode, score: k.score, tag: 'по басу' });
+    } else {
+      for (const k of list) if (k.tonic === bassTonic) k.tag = 'по басу';
+    }
+    return list;
+  }
+
   /** Возвращает { key, changes }: общая тональность и список смен (время в секундах). */
   function analyzeKey(mono) {
     const kf = keyFrames(mono);
-    if (!kf) return { key: { tonic: 0, mode: 'major', score: 0, tuning: 0, alternatives: [] }, changes: [], segments: [] };
+    if (!kf) return { key: { tonic: 0, mode: 'major', score: 0, tuning: 0, alternatives: [], candidates: [] }, changes: [], segments: [] };
     const whole = keyFromChroma(sumChroma(kf.frames, 0, Infinity), kf.tuning);
     const segments = findKeyChanges(kf);
-    if (segments.length <= 1) return { key: whole, changes: [], segments };
-    // основная тональность: самый длинный кусок
-    let main = segments[0];
-    for (const sg of segments) if (sg.end - sg.start > main.end - main.start) main = sg;
-    const changes = [];
-    for (let i = 1; i < segments.length; i++) changes.push({ time: segments[i].start, from: segments[i - 1].key, to: segments[i].key });
-    return { key: main.key, changes, segments };
+    let key = whole, changes = [];
+    if (segments.length > 1) {
+      // основная тональность: самый длинный кусок
+      let main = segments[0];
+      for (const sg of segments) if (sg.end - sg.start > main.end - main.start) main = sg;
+      key = main.key;
+      for (let i = 1; i < segments.length; i++) changes.push({ time: segments[i].start, from: segments[i - 1].key, to: segments[i].key });
+    }
+    key.candidates = keyCandidates(kf.frames, key);
+    return { key, changes, segments };
   }
 
   function detectKey(mono) { return analyzeKey(mono).key; }

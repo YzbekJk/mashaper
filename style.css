@@ -163,4 +163,14 @@ footer { color: var(--muted); font-size: 0.8125rem; }
 .key-changes { margin: 0; font-size: 0.8125rem; color: var(--muted); }
 .key-changes.has-changes { color: var(--fg); font-weight: 500; border-left: 3px solid var(--accent); padding-left: 10px; }
 
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.chip {
+  font: 500 0.8125rem var(--font-mono);
+  color: var(--fg); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 999px;
+  padding: 5px 11px; cursor: pointer;
+}
+.chip:hover { border-color: var(--accent); }
+.chip small { color: var(--muted); font: 400 0.75rem var(--font-body); }
+
 [hidden] { display: none !important; }
