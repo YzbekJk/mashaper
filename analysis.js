@@ -323,11 +323,11 @@
     const tempoFactor = target / rBpm;
     let tempoNote;
     if (Math.abs(tempoFactor - 1) < 0.0005) {
-      tempoNote = 'Темп уже совпадает (' + Math.round(rBpm * 10) / 10 + ' и ' + Math.round(gBpm * 10) / 10 + ' BPM), обычную песню не меняю.';
+      tempoNote = 'Темп уже совпадает (' + +rBpm.toFixed(3) + ' и ' + +gBpm.toFixed(3) + ' BPM), обычную песню не меняю.';
     } else {
       const pct = Math.abs(tempoFactor - 1) * 100;
-      tempoNote = 'Обычная песня: ' + (Math.round(rBpm * 10) / 10) + ' → ' + (Math.round(target * 10) / 10) +
-        ' BPM (' + (tempoFactor > 1 ? 'быстрее' : 'медленнее') + ' на ' + pct.toFixed(1) + '%).';
+      tempoNote = 'Обычная песня: ' + (+rBpm.toFixed(3)) + ' → ' + (+target.toFixed(3)) +
+        ' BPM (' + (tempoFactor > 1 ? 'быстрее' : 'медленнее') + ' на ' + pct.toFixed(2) + '%, коэффициент ' + tempoFactor.toFixed(5) + ').';
       if (k !== 0) tempoNote += ' ' + (k > 0 ? 'Темп GD Song вдвое' : 'Темп обычной песни вдвое') + ' выше, это считается совпадением.';
       if (pct > 25) warnings.push('Темп меняется сильно, качество звука может ухудшиться.');
     }

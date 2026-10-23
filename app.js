@@ -88,7 +88,7 @@
     const song = state[s];
     const out = $('bpminfo-' + s);
     if (!song) { out.textContent = ''; return; }
-    const det = song.bpm && song.bpm.bpm ? song.bpm.bpm.toFixed(1) : null;
+    const det = song.bpm && song.bpm.bpm ? song.bpm.bpm.toFixed(3) : null;
     out.textContent = song.bpmOverride
       ? 'Задано вручную' + (det ? '. Автоопределение: ' + det : '')
       : det ? 'Определено автоматически' : 'Не удалось определить, введите вручную';
@@ -138,7 +138,7 @@
       if (token !== loadToken[s]) return;
       state[s] = { name: file.name, channels: audio.channels, sampleRate: audio.sampleRate, key, bpm, keyOverride: 'auto', bpmOverride: null };
       $('key-' + s).value = 'auto';
-      $('bpm-' + s).value = bpm.bpm ? bpm.bpm.toFixed(1) : '';
+      $('bpm-' + s).value = bpm.bpm ? bpm.bpm.toFixed(3) : '';
       renderKeyInfo(s); renderBpmInfo(s);
       $('fields-' + s).hidden = false;
       if (s === 'reg') { $('strip-wrap').hidden = false; }
@@ -278,7 +278,7 @@
         gdOut, gd.sampleRate);
       const target = A.effectiveBpm(reg) * res.tempoFactor;
       addOutput('Обычная песня',
-        (res.tempoFactor === 1 ? 'Темп не менялся.' : 'Темп изменён до ' + (Math.round(target * 10) / 10) + ' BPM, питч не менялся.') + (strip ? (stripSkipped ? ' Песня моно, считаю её акапеллой и не меняю.' : ' Остался только вокал.') : ''),
+        (res.tempoFactor === 1 ? 'Темп не менялся.' : 'Темп изменён до ' + (+target.toFixed(3)) + ' BPM, питч не менялся.') + (strip ? (stripSkipped ? ' Песня моно, считаю её акапеллой и не меняю.' : ' Остался только вокал.') : ''),
         baseName(reg.name) + (strip && !stripSkipped ? '_acapella' : '') + (res.tempoFactor === 1 ? (strip && !stripSkipped ? '' : '_original') : '_' + Math.round(target) + 'bpm'),
         regOut, reg.sampleRate);
       $('progress').hidden = true;
