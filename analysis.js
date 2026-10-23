@@ -3,8 +3,9 @@
   'use strict';
 
   const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-  const KK_MAJOR = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88];
-  const KK_MINOR = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17];
+  // Профили Альбрехта и Шанахана (2013): точнее профилей Краусса-Кесслера на реальных записях
+  const KEY_MAJOR = [0.238, 0.006, 0.111, 0.006, 0.137, 0.094, 0.016, 0.214, 0.009, 0.080, 0.008, 0.081];
+  const KEY_MINOR = [0.220, 0.006, 0.104, 0.123, 0.019, 0.103, 0.012, 0.214, 0.062, 0.022, 0.061, 0.052];
 
   // ---------- FFT ----------
   const twiddles = {};
@@ -130,7 +131,7 @@
     const peaks = [];
     frames.forEach((mag, j) => {
       if (energies[j] < med * 0.05 || energies[j] <= 1e-9) return;
-      peaks.push(spectralPeaks(mag, sr, N, 80, 2000));
+      peaks.push(spectralPeaks(mag, sr, N, 55, 3500));
     });
     // отклонение строя от A440 (в полутонах)
     let cs = 0, sn = 0;
@@ -149,7 +150,6 @@
       for (const [f, w] of pk) {
         const ww = Math.sqrt(w);
         add(loc, f, ww);
-        if (f / 2 >= 40) add(loc, f / 2, ww * 0.5); // пик может быть второй гармоникой
       }
       let sum = 0;
       for (let i = 0; i < 12; i++) sum += loc[i];
@@ -158,14 +158,25 @@
     const all = [];
     for (let tonic = 0; tonic < 12; tonic++) {
       for (const mode of ['major', 'minor']) {
-        const prof = mode === 'major' ? KK_MAJOR : KK_MINOR;
+        const prof = mode === 'major' ? KEY_MAJOR : KEY_MINOR;
         const rotated = new Array(12);
         for (let i = 0; i < 12; i++) rotated[i] = prof[((i - tonic) % 12 + 12) % 12];
         all.push({ tonic, mode, score: pearson(Array.from(chroma), rotated) });
       }
     }
     all.sort((a, b) => b.score - a.score);
-    return { tonic: all[0].tonic, mode: all[0].mode, score: all[0].score, tuning, alternatives: all.slice(1, 3) };
+    let best = all[0];
+    // Если у тоники не слышно, какая терция (малая или большая), лад не определить по нотам.
+    // Тогда выбираем минор: так чаще бывает в электронной музыке и в GD.
+    const t = best.tonic, minorThird = chroma[(t + 3) % 12], majorThird = chroma[(t + 4) % 12];
+    const thirdRatio = Math.max(minorThird, majorThird) / Math.max(1e-9, Math.min(minorThird, majorThird));
+    let ambiguousMode = false;
+    if (thirdRatio < 1.25) {
+      ambiguousMode = true;
+      best = all.find((k) => k.tonic === t && k.mode === 'minor');
+    }
+    const alternatives = all.filter((k) => k !== best).slice(0, 2);
+    return { tonic: best.tonic, mode: best.mode, score: best.score, tuning, ambiguousMode, alternatives };
   }
 
   // ---------- BPM ----------

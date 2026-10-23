@@ -16,7 +16,7 @@
   const pitchLimit = $('pitch-limit'), keyThreshold = $('key-threshold');
   function readStore(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function writeStore(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* без хранилища тоже работает */ } }
-  const savedLimit = readStore('mashaper.pitchLimit'), savedThr = readStore('mashaper.keyThreshold');
+  const savedLimit = readStore('mashaper.pitchLimit'), savedThr = readStore('mashaper.keyThreshold2');
   if (savedLimit !== null && !isNaN(+savedLimit)) pitchLimit.value = savedLimit;
   if (savedThr !== null && !isNaN(+savedThr)) keyThreshold.value = savedThr;
 
@@ -34,7 +34,7 @@
   }
   pitchLimit.addEventListener('input', () => { renderSettings(); writeStore('mashaper.pitchLimit', pitchLimit.value); });
   keyThreshold.addEventListener('input', () => {
-    renderSettings(); writeStore('mashaper.keyThreshold', keyThreshold.value);
+    renderSettings(); writeStore('mashaper.keyThreshold2', keyThreshold.value);
     SLOTS.forEach(renderKeyInfo);
   });
   renderSettings();
@@ -75,7 +75,7 @@
     const r = A.resolveKey(song, +keyThreshold.value, s === 'gd');
     const score = song.key.score.toFixed(2);
     const alts = (song.key.alternatives || []).map((k) => A.keyName(k) + ' ' + k.score.toFixed(2)).join(', ');
-    const altText = alts ? ' Похожие варианты: ' + alts + '.' : '';
+    const altText = (song.key.ambiguousMode ? ' Терция неразличима, считаю минором.' : '') + (alts ? ' Похожие варианты: ' + alts + '.' : '');
     if (r.source === 'manual') {
       out.textContent = 'Задано вручную. Автоопределение: ' + A.keyName(song.key) + ' (' + score + ').';
     } else if (r.keyless) {
