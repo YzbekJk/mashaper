@@ -420,7 +420,7 @@
     for (let c = 0; c < nCand; c++) {
       mean += scores[c];
       const oct = Math.log2((lo + c * step) / 125);
-      weighted[c] = scores[c] * Math.exp(-0.5 * (oct / 0.7) ** 2);
+      weighted[c] = scores[c] * Math.exp(-0.5 * (oct / 0.55) ** 2);
       if (weighted[c] > weighted[bi]) bi = c;
     }
     mean /= nCand;
