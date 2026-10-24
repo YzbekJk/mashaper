@@ -414,16 +414,43 @@
       }
       scores[c] = score;
     }
+    // Мягкое предпочтение привычных темпов около 125 BPM: так 4:3-эхо (например, 172 вместо 129) не побеждает настоящий темп
+    const weighted = new Float64Array(nCand);
     let bi = 0, mean = 0;
-    for (let c = 0; c < nCand; c++) { mean += scores[c]; if (scores[c] > scores[bi]) bi = c; }
-    mean /= nCand;
-    let bpm = lo + bi * step;
-    if (bi > 0 && bi < nCand - 1) {
-      const a = scores[bi - 1], b = scores[bi], c = scores[bi + 1];
-      const den = a - 2 * b + c;
-      if (den < 0) bpm += 0.5 * (a - c) / den * step;
+    for (let c = 0; c < nCand; c++) {
+      mean += scores[c];
+      const oct = Math.log2((lo + c * step) / 125);
+      weighted[c] = scores[c] * Math.exp(-0.5 * (oct / 0.7) ** 2);
+      if (weighted[c] > weighted[bi]) bi = c;
     }
-    return { bpm, confidence: mean > 0 ? scores[bi] / mean : 0 };
+    mean /= nCand;
+    const refine = (i) => {
+      let v = lo + i * step;
+      if (i > 0 && i < nCand - 1) {
+        const a = scores[i - 1], b = scores[i], c = scores[i + 1];
+        const den = a - 2 * b + c;
+        if (den < 0) v += 0.5 * (a - c) / den * step;
+      }
+      return v;
+    };
+    const bpm = refine(bi);
+    // другие заметные пики: на случай, если автоопределение выбрало не тот
+    const peaks = [];
+    for (let i = 2; i < nCand - 2; i++) {
+      if (scores[i] > scores[i - 1] && scores[i] >= scores[i + 1] && scores[i] > scores[i - 2] && scores[i] >= scores[i + 2]) peaks.push(i);
+    }
+    peaks.sort((x, y) => scores[y] - scores[x]);
+    const top = scores[peaks.length ? peaks[0] : bi] || 1;
+    const candidates = [];
+    for (const i of peaks) {
+      const v = refine(i);
+      if (Math.abs(v / bpm - 1) < 0.015) continue;
+      if (candidates.some((c) => Math.abs(c.bpm / v - 1) < 0.015)) continue;
+      if (scores[i] < 0.3 * top) break;
+      candidates.push({ bpm: v, strength: scores[i] / top });
+      if (candidates.length >= 3) break;
+    }
+    return { bpm, confidence: mean > 0 ? scores[bi] / mean : 0, candidates };
   }
 
   // ---------- Подгонка ----------

@@ -108,6 +108,30 @@
     });
     box.hidden = false;
   }
+  function renderBpmChips(s) {
+    const song = state[s];
+    const box = $('bpmchips-' + s);
+    box.textContent = '';
+    const cands = song && song.bpm && song.bpm.candidates ? song.bpm.candidates : [];
+    if (!cands.length) { box.hidden = true; return; }
+    const label = document.createElement('small');
+    label.textContent = 'Другие возможные BPM:';
+    label.style.flexBasis = '100%';
+    label.style.color = 'var(--muted)';
+    box.appendChild(label);
+    cands.forEach((c) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'chip';
+      b.textContent = c.bpm.toFixed(1);
+      b.addEventListener('click', () => {
+        const input = $('bpm-' + s);
+        input.value = c.bpm.toFixed(3);
+        input.dispatchEvent(new Event('input'));
+      });
+      box.appendChild(b);
+    });
+    box.hidden = false;
+  }
   function fmtTime(t) {
     return Math.floor(t / 60) + ':' + String(Math.round(t % 60) % 60).padStart(2, '0');
   }
@@ -180,7 +204,7 @@
       state[s] = { name: file.name, channels: audio.channels, sampleRate: audio.sampleRate, key, keyChanges: ak.changes, bpm, keyOverride: 'auto', bpmOverride: null };
       $('key-' + s).value = 'auto';
       $('bpm-' + s).value = bpm.bpm ? bpm.bpm.toFixed(3) : '';
-      renderKeyInfo(s); renderBpmInfo(s); renderChanges(s); renderChips(s);
+      renderKeyInfo(s); renderBpmInfo(s); renderChanges(s); renderChips(s); renderBpmChips(s);
       $('fields-' + s).hidden = false;
       if (s === 'reg') { $('strip-wrap').hidden = false; }
       const mins = Math.floor(audio.channels[0].length / audio.sampleRate / 60);
