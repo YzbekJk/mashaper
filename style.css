@@ -174,10 +174,13 @@ footer { color: var(--muted); font-size: 0.8125rem; }
 .chip small { color: var(--muted); font: 400 0.75rem var(--font-body); }
 
 .disclaimer {
-  margin: 0; display: flex; flex-direction: column; gap: 4px;
-  font-size: 0.875rem; color: var(--fg);
-  border-left: 3px solid var(--accent); padding-left: 12px; max-width: 60ch;
+  margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+  font-size: 0.8125rem; line-height: 1.45;
+  border-left: 3px solid var(--accent);
 }
+.disclaimer span { min-width: 0; padding: 2px 12px; overflow-wrap: anywhere; }
+.disclaimer span[lang="ru"] { color: var(--fg); border-right: 1px solid var(--line); }
 .disclaimer span[lang="en"] { color: var(--muted); }
+@media (min-width: 640px) { .disclaimer { font-size: 0.875rem; } }
 
 [hidden] { display: none !important; }
