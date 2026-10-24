@@ -59,7 +59,7 @@
       if (!state[s]) return;
       const v = parseFloat(e.target.value);
       state[s].bpmOverride = v > 0 ? v : null;
-      renderBpmInfo(s);
+      renderBpmInfo(s); renderBpmChanges(s);
       updateRunState();
     });
     $('file-' + s).addEventListener('change', (e) => {
@@ -132,6 +132,20 @@
     });
     box.hidden = false;
   }
+  function bpmChangeLines(song) {
+    return (song.bpmChanges || []).map((c) => 'с ' + fmtTime(c.start) + ' до ' + fmtTime(c.end) + ' BPM около ' + (+c.bpm.toFixed(1)));
+  }
+  function renderBpmChanges(s) {
+    const song = state[s];
+    const el = $('bpmchanges-' + s);
+    if (!song) { el.textContent = ''; return; }
+    const lines = bpmChangeLines(song);
+    el.className = 'key-changes' + (lines.length ? ' has-changes' : '');
+    el.textContent = lines.length
+      ? 'BPM меняется: ' + lines.join('; ') + '. Основной темп: ' + (+effectiveMainBpm(song).toFixed(3)) + '.'
+      : 'BPM не меняется.';
+  }
+  function effectiveMainBpm(song) { return A.effectiveBpm(song); }
   function fmtTime(t) {
     return Math.floor(t / 60) + ':' + String(Math.round(t % 60) % 60).padStart(2, '0');
   }
@@ -199,12 +213,13 @@
       const ak = A.analyzeKey(mono);
       const key = ak.key;
       await tick();
-      const bpm = A.detectBpm(mono);
+      const at = A.analyzeTempo(mono);
+      const bpm = at.bpm;
       if (token !== loadToken[s]) return;
-      state[s] = { name: file.name, channels: audio.channels, sampleRate: audio.sampleRate, key, keyChanges: ak.changes, bpm, keyOverride: 'auto', bpmOverride: null };
+      state[s] = { name: file.name, channels: audio.channels, sampleRate: audio.sampleRate, key, keyChanges: ak.changes, bpmChanges: at.changes, bpm, keyOverride: 'auto', bpmOverride: null };
       $('key-' + s).value = 'auto';
       $('bpm-' + s).value = bpm.bpm ? bpm.bpm.toFixed(3) : '';
-      renderKeyInfo(s); renderBpmInfo(s); renderChanges(s); renderChips(s); renderBpmChips(s);
+      renderKeyInfo(s); renderBpmInfo(s); renderChanges(s); renderChips(s); renderBpmChips(s); renderBpmChanges(s);
       $('fields-' + s).hidden = false;
       if (s === 'reg') { $('strip-wrap').hidden = false; }
       const mins = Math.floor(audio.channels[0].length / audio.sampleRate / 60);
@@ -313,6 +328,14 @@
       const li = document.createElement('li');
       li.className = 'warn';
       li.textContent = LABEL[id] + ': тональность меняется ' + lines.join('; ') + '. Подгоняю по основной тональности ' + A.keyName(song.key) + '.';
+      plan.appendChild(li);
+    });
+    [['gd', gd], ['reg', reg]].forEach(([id, song]) => {
+      const lines = bpmChangeLines(song);
+      if (!lines.length) return;
+      const li = document.createElement('li');
+      li.className = 'warn';
+      li.textContent = LABEL[id] + ': BPM меняется (' + lines.join('; ') + '). Подгоняю по основному темпу ' + (+A.effectiveBpm(song).toFixed(3)) + ', участки с другим темпом не совпадут.';
       plan.appendChild(li);
     });
 

@@ -343,11 +343,11 @@
   function detectKey(mono) { return analyzeKey(mono).key; }
 
   // ---------- BPM ----------
-  function onsetEnvelope(mono) {
+  function onsetEnvelope(mono, maxSec) {
     const { data, sr } = mono;
     const N = 1024, hop = 256;
     let peak = 0;
-    const seg = Math.min(data.length, Math.floor(200 * sr));
+    const seg = Math.min(data.length, Math.floor((maxSec || 200) * sr));
     const start = Math.max(0, Math.floor((data.length - seg) / 2));
     for (let i = start; i < start + seg; i++) peak = Math.max(peak, Math.abs(data[i]));
     if (peak <= 0) return { env: new Float64Array(0), fps: sr / hop };
@@ -453,6 +453,119 @@
     return { bpm, confidence: mean > 0 ? scores[bi] / mean : 0, candidates };
   }
 
+
+  /** Одинаковый ли это темп: с точностью до удвоения и пульсов 4:3 и 3:2 (эхо и триоли). */
+  function sameTempo(a, b, tol) {
+    let r = a / b;
+    while (r >= 2) r /= 2;
+    while (r < 1) r *= 2;
+    // 4:3 и 3:2 бывают только у точных полиритмов, поэтому допуск для них уже
+    return Math.abs(r - 1) < tol || Math.abs(r / 2 - 1) < tol ||
+      Math.abs(r / (4 / 3) - 1) < 0.01 || Math.abs(r / 1.5 - 1) < 0.01;
+  }
+
+  /**
+   * Ищет участки с другим темпом. Считает темп в скользящем окне 24 с и сравнивает с основным.
+   * Возвращает [{ start, end, bpm }] только для участков, где темп отличается (время в секундах).
+   */
+  function detectTempoChanges(mono, mainBpm) {
+    if (!(mainBpm > 0)) return [];
+    const { env, fps } = onsetEnvelope(mono, 900);
+    const M = env.length;
+    const WIN = 24, STEP = 6;
+    if (M < fps * (WIN + STEP)) return [];
+    const wTr = Math.round(fps * 0.5);
+    const o = new Float64Array(M), pre = new Float64Array(M + 1);
+    for (let i = 0; i < M; i++) pre[i + 1] = pre[i] + env[i];
+    for (let i = 0; i < M; i++) {
+      const a = Math.max(0, i - wTr), b = Math.min(M, i + wTr + 1);
+      o[i] = Math.max(0, env[i] - (pre[b] - pre[a]) / (b - a));
+    }
+    const lo = 70, hi = 180, step = 0.25, nCand = Math.round((hi - lo) / step) + 1;
+    const wl = Math.round(WIN * fps);
+    const hw = hann(wl);
+    const seg = new Float64Array(wl);
+    const wins = [];
+    for (let t0 = 0; (t0 + WIN) * fps <= M; t0 += STEP) {
+      const i0 = Math.round(t0 * fps);
+      let energy = 0;
+      for (let i = 0; i < wl; i++) { seg[i] = o[i0 + i] * hw[i]; energy += seg[i]; }
+      if (energy <= 1e-9) { wins.push({ t0, bpm: null }); continue; }
+      const scores = new Float64Array(nCand);
+      let mean = 0;
+      for (let c = 0; c < nCand; c++) {
+        const bpm = lo + c * step;
+        let sc = 0;
+        for (let h = 1; h <= 3; h++) {
+          const th = 2 * Math.PI * h * bpm / 60 / fps, cs = Math.cos(th), sn = Math.sin(th);
+          let cr = 1, ci = 0, re = 0, im = 0;
+          for (let n = 0; n < wl; n++) {
+            const v = seg[n];
+            re += v * cr; im += v * ci;
+            const t = cr * cs - ci * sn; ci = cr * sn + ci * cs; cr = t;
+          }
+          sc += [1, 0.6, 0.4][h - 1] * Math.sqrt(re * re + im * im);
+        }
+        scores[c] = sc; mean += sc;
+      }
+      mean /= nCand;
+      let bi = 0, bw = -1;
+      for (let c = 0; c < nCand; c++) {
+        const w = scores[c] * Math.exp(-0.5 * (Math.log2((lo + c * step) / 125) / 0.55) ** 2);
+        if (w > bw) { bw = w; bi = c; }
+      }
+      const conf = mean > 0 ? scores[bi] / mean : 0;
+      let bpm = lo + bi * step;
+      if (bi > 0 && bi < nCand - 1) {
+        const a = scores[bi - 1], b = scores[bi], c = scores[bi + 1], den = a - 2 * b + c;
+        if (den < 0) bpm += 0.5 * (a - c) / den * step;
+      }
+      wins.push({ t0, bpm: conf >= 4 ? bpm : null });
+    }
+    // окна с другим темпом: темп чётко определён и не совпадает с основным
+    const other = wins.map((w) => w.bpm !== null && !sameTempo(w.bpm, mainBpm, 0.03));
+    const out = [];
+    let i = 0;
+    while (i < wins.length) {
+      if (!other[i]) { i++; continue; }
+      let j = i;
+      while (j + 1 < wins.length && other[j + 1] && sameTempo(wins[j + 1].bpm, wins[i].bpm, 0.03)) j++;
+      if (j - i + 1 >= 3) {
+        const vals = wins.slice(i, j + 1).map((w) => w.bpm).sort((a, b) => a - b);
+        const start = i === 0 ? 0 : wins[i].t0 + WIN / 2 - STEP / 2;
+        const end = j === wins.length - 1 ? mono.data.length / mono.sr : wins[j].t0 + WIN / 2 + STEP / 2;
+        out.push({ start, end, bpm: vals[vals.length >> 1] });
+      }
+      i = j + 1;
+    }
+    return out;
+  }
+
+  /** Темп песни и участки с другим темпом. Основным считается темп, который звучит дольше всего. */
+  function analyzeTempo(mono) {
+    let main = detectBpm(mono);
+    if (!(main.bpm > 0)) return { bpm: main, changes: [] };
+    const total = mono.data.length / mono.sr;
+    const refine = (seg) => {
+      const sl = mono.data.subarray(Math.floor(seg.start * mono.sr), Math.floor(seg.end * mono.sr));
+      const r = sl.length > mono.sr * 20 ? detectBpm({ data: sl, sr: mono.sr }) : null;
+      return r && r.bpm > 0 && sameTempo(r.bpm, seg.bpm, 0.03) ? r.bpm : seg.bpm;
+    };
+    let changes = detectTempoChanges(mono, main.bpm);
+    const otherTime = changes.reduce((s, c) => s + (c.end - c.start), 0);
+    if (changes.length && otherTime > total * 0.5) {
+      // другой темп звучит дольше: он и есть основной
+      const big = changes.reduce((a, b) => (b.end - b.start > a.end - a.start ? b : a));
+      const refined = refine(big);
+      const sl = mono.data.subarray(Math.floor(big.start * mono.sr), Math.floor(big.end * mono.sr));
+      const nb = sl.length > mono.sr * 20 ? detectBpm({ data: sl, sr: mono.sr }) : null;
+      main = nb && nb.bpm > 0 ? nb : { bpm: refined, confidence: main.confidence, candidates: main.candidates };
+      changes = detectTempoChanges(mono, main.bpm);
+    }
+    changes = changes.map((c) => ({ start: c.start, end: c.end, bpm: refine(c) }));
+    return { bpm: main, changes };
+  }
+
   // ---------- Подгонка ----------
   function semis(n) {
     const a = Math.abs(n) % 100, b = a % 10;
@@ -535,7 +648,7 @@
     return { overLimit, semitones, tempoFactor: Math.abs(tempoFactor - 1) < 0.0005 ? 1 : tempoFactor, keyNote, tempoNote, warnings };
   }
 
-  const api = { NOTE_NAMES, fft, toMono, detectKey, analyzeKey, detectBpm, resolveKey, effectiveBpm, plan, keyName };
+  const api = { NOTE_NAMES, fft, toMono, detectKey, analyzeKey, detectBpm, detectTempoChanges, analyzeTempo, resolveKey, effectiveBpm, plan, keyName };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.MashaperAnalysis = api;
 })(typeof self !== 'undefined' ? self : this);
