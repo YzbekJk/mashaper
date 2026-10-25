@@ -12,12 +12,21 @@
 <body>
 <main>
   <header>
-    <h1>Мэш<span>апер</span></h1>
+    <div class="titlerow">
+      <h1>Мэш<span>апер</span></h1>
+      <div class="tools">
+        <div class="lang-toggle" role="group" aria-label="Language / Язык">
+          <button type="button" data-lang="ru" aria-pressed="true">RU</button>
+          <button type="button" data-lang="en" aria-pressed="false">EN</button>
+        </div>
+        <button type="button" id="help" class="btn small" data-i18n="help_btn">Обучение</button>
+      </div>
+    </div>
     <p class="disclaimer">
       <span lang="ru">Сайт не делает мэшапы самостоятельно, только питчит и ускоряет/замедляет песню.</span>
       <span lang="en">This site does not make mashups on its own. It only pitch-shifts and speeds up or slows down a song.</span>
     </p>
-    <p class="lead">Загрузите GD Song и обычную песню. Мэшапер подгонит тональность GD Song и темп обычной песни.</p>
+    <p class="lead" data-i18n="lead">Загрузите GD Song и обычную песню. Мэшапер подгонит тональность GD Song и темп обычной песни.</p>
   </header>
 
   <section class="songs" aria-label="Песни">
@@ -25,18 +34,18 @@
       <h2>GD Song</h2>
       <label class="pick" for="file-gd">
         <input type="file" id="file-gd" accept="audio/*,.mp3,.ogg,.wav,.m4a,.flac">
-        <span class="pick-name" id="name-gd">Выбрать файл</span>
+        <span class="pick-name" id="name-gd" data-i18n="pick">Выбрать файл</span>
       </label>
       <p class="status" id="status-gd" role="status"></p>
       <div class="fields" id="fields-gd" hidden>
         <div class="field">
-          <label for="key-gd">Тональность</label>
+          <label for="key-gd" data-i18n="key">Тональность</label>
           <select id="key-gd"></select>
           <output id="keyinfo-gd"></output>
           <div class="chips" id="chips-gd" hidden></div>
         </div>
         <div class="field">
-          <label for="bpm-gd">BPM</label>
+          <label for="bpm-gd" data-i18n="bpm">BPM</label>
           <input id="bpm-gd" type="number" inputmode="decimal" min="30" max="300" step="0.001">
           <output id="bpminfo-gd"></output>
           <div class="chips" id="bpmchips-gd" hidden></div>
@@ -47,21 +56,21 @@
     </article>
 
     <article class="song" id="song-reg">
-      <h2>Обычная песня</h2>
+      <h2 data-i18n="label_reg">Обычная песня</h2>
       <label class="pick" for="file-reg">
         <input type="file" id="file-reg" accept="audio/*,.mp3,.ogg,.wav,.m4a,.flac">
-        <span class="pick-name" id="name-reg">Выбрать файл</span>
+        <span class="pick-name" id="name-reg" data-i18n="pick">Выбрать файл</span>
       </label>
       <p class="status" id="status-reg" role="status"></p>
       <div class="fields" id="fields-reg" hidden>
         <div class="field">
-          <label for="key-reg">Тональность</label>
+          <label for="key-reg" data-i18n="key">Тональность</label>
           <select id="key-reg"></select>
           <output id="keyinfo-reg"></output>
           <div class="chips" id="chips-reg" hidden></div>
         </div>
         <div class="field">
-          <label for="bpm-reg">BPM</label>
+          <label for="bpm-reg" data-i18n="bpm">BPM</label>
           <input id="bpm-reg" type="number" inputmode="decimal" min="30" max="300" step="0.001">
           <output id="bpminfo-reg"></output>
           <div class="chips" id="bpmchips-reg" hidden></div>
@@ -73,39 +82,48 @@
   </section>
 
   <details class="settings">
-    <summary>Настройки</summary>
+    <summary data-i18n="settings">Настройки</summary>
     <div class="setting">
-      <label for="pitch-limit">Граница питча</label>
+      <label for="pitch-limit" data-i18n="pitch_limit">Граница питча</label>
       <div class="range-row">
         <input id="pitch-limit" type="range" min="0" max="6" step="1" value="4">
         <output id="pitch-limit-out" for="pitch-limit">±4 полутона</output>
       </div>
-      <p class="hint">Если GD Song нужно сдвинуть дальше этого значения, Мэшапер предупредит об этом.</p>
+      <p class="hint" data-i18n="pitch_hint">Если GD Song нужно сдвинуть дальше этого значения, Мэшапер предупредит об этом.</p>
     </div>
     <div class="setting">
-      <label for="key-threshold">Порог тональности</label>
+      <label for="key-threshold" data-i18n="key_thr">Порог тональности</label>
       <div class="range-row">
         <input id="key-threshold" type="range" min="0.4" max="0.95" step="0.05" value="0.75">
         <output id="key-threshold-out" for="key-threshold">0.75</output>
       </div>
-      <p class="hint">Обычная песня с уверенностью ниже порога считается без тональности, и питч не меняется. У GD Song тональность есть всегда. Тональность можно выбрать вручную.</p>
+      <p class="hint" data-i18n="thr_hint">Обычная песня с уверенностью ниже порога считается без тональности, и питч не меняется.</p>
     </div>
   </details>
 
-  <button type="button" id="run" class="primary" disabled>Подогнать</button>
+  <div class="run-wrap" id="run-wrap">
+    <div class="sleeper-slot">
+      <span class="zzz" aria-hidden="true">z<span>z</span><span>z</span></span>
+      <button type="button" class="sleeper" id="sleeper" aria-label="Mash">
+        <canvas id="mash-sleep" class="mash" width="42" height="18" aria-hidden="true"></canvas>
+      </button>
+      <div class="bubble" id="bubble" role="status" aria-live="polite" hidden></div>
+    </div>
+    <button type="button" id="run" class="primary" disabled data-i18n="run">Подогнать</button>
+  </div>
 
   <div id="error" class="error" role="alert" hidden></div>
 
   <div id="confirm" class="confirm" role="alertdialog" aria-labelledby="confirm-text" hidden>
     <p id="confirm-text"></p>
     <div class="btns">
-      <button type="button" id="confirm-yes" class="btn">Всё равно подогнать</button>
-      <button type="button" id="confirm-no" class="btn">Отмена</button>
+      <button type="button" id="confirm-yes" class="btn" data-i18n="confirm_yes">Всё равно подогнать</button>
+      <button type="button" id="confirm-no" class="btn" data-i18n="confirm_no">Отмена</button>
     </div>
   </div>
 
   <section id="result" hidden aria-live="polite">
-    <h2 class="section-title">Результат</h2>
+    <h2 class="section-title" data-i18n="result">Результат</h2>
     <ul class="plan" id="plan"></ul>
     <div class="progress" id="progress" hidden>
       <div class="progress-label" id="progress-label"></div>
@@ -114,11 +132,24 @@
     <div class="outputs" id="outputs"></div>
   </section>
 
-  <footer>Всё считается в вашем браузере, файлы никуда не отправляются.</footer>
+  <footer data-i18n="footer">Всё считается в вашем браузере, файлы никуда не отправляются.</footer>
 </main>
+
+<div id="intro" class="intro" data-size="md" role="dialog" aria-modal="true" aria-labelledby="intro-title">
+  <div class="intro-inner">
+    <div class="wordmark" aria-hidden="true">Мэш<span>апер</span></div>
+    <div class="intro-stage">
+      <canvas id="mash-intro" class="mash" width="33" height="43" aria-hidden="true"></canvas>
+      <div class="intro-card" id="intro-card"></div>
+    </div>
+  </div>
+</div>
+<script src="i18n.js"></script>
 <script src="analysis.js"></script>
 <script src="dsp.js"></script>
 <script src="audio-out.js"></script>
+<script src="mascot.js"></script>
 <script src="app.js"></script>
+<script src="intro.js"></script>
 </body>
 </html>

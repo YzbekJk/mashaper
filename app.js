@@ -2,10 +2,11 @@
   'use strict';
   const A = self.MashaperAnalysis, Dsp = self.MashaperDsp, Out = self.MashaperOut;
   const $ = (id) => document.getElementById(id);
+  const t = (...a) => self.I18n.t(...a);
   const tick = () => new Promise((r) => setTimeout(r, 0));
 
   const SLOTS = ['gd', 'reg'];
-  const LABEL = { gd: 'GD Song', reg: 'Обычная песня' };
+  const label = (id) => (id === 'gd' ? 'GD Song' : t('label_reg'));
   const state = { gd: null, reg: null };
   const loadToken = { gd: 0, reg: 0 };
   let audioCtx = null;
@@ -20,16 +21,10 @@
   if (savedLimit !== null && !isNaN(+savedLimit)) pitchLimit.value = savedLimit;
   if (savedThr !== null && !isNaN(+savedThr)) keyThreshold.value = savedThr;
 
-  function plural(n) {
-    const a = Math.abs(n) % 100, b = a % 10;
-    if (a > 10 && a < 20) return 'полутонов';
-    if (b === 1) return 'полутон';
-    if (b >= 2 && b <= 4) return 'полутона';
-    return 'полутонов';
-  }
+  function plural(n) { return t('semis', n); }
   function renderSettings() {
     const n = +pitchLimit.value;
-    $('pitch-limit-out').textContent = n === 0 ? 'без сдвига' : '±' + n + ' ' + plural(n);
+    $('pitch-limit-out').textContent = n === 0 ? t('no_shift') : '±' + n + ' ' + plural(n);
     $('key-threshold-out').textContent = (+keyThreshold.value).toFixed(2);
   }
   pitchLimit.addEventListener('input', () => { renderSettings(); writeStore('mashaper.pitchLimit', pitchLimit.value); });
@@ -39,11 +34,30 @@
   });
   renderSettings();
 
+  // ---------- смена языка ----------
+  function relabelKeySelects() {
+    SLOTS.forEach((s) => {
+      const sel = $('key-' + s);
+      for (const o of sel.options) {
+        if (o.value === 'auto') o.textContent = t('auto');
+        else if (o.value === 'none') o.textContent = t('none');
+      }
+    });
+  }
+  window.addEventListener('langchange', () => {
+    renderSettings();
+    relabelKeySelects();
+    SLOTS.forEach((s) => {
+      if (!state[s]) return;
+      renderKeyInfo(s); renderBpmInfo(s); renderChanges(s); renderChips(s); renderBpmChips(s); renderBpmChanges(s);
+    });
+  });
+
   // ---------- выбор тональности ----------
   function fillKeySelect(sel, allowNone) {
     const add = (v, t) => { const o = document.createElement('option'); o.value = v; o.textContent = t; sel.appendChild(o); };
-    add('auto', 'Авто');
-    if (allowNone) add('none', 'Без тональности');
+    add('auto', t('auto'));
+    if (allowNone) add('none', t('none'));
     for (const mode of ['major', 'minor']) {
       for (let t = 0; t < 12; t++) add(t + '-' + mode, A.NOTE_NAMES[t] + ' ' + mode);
     }
@@ -74,13 +88,13 @@
     if (!song || !song.key) { out.textContent = ''; return; }
     const r = A.resolveKey(song, +keyThreshold.value, s === 'gd');
     const score = song.key.score.toFixed(2);
-    const altText = song.key.ambiguousMode ? ' Терция неразличима, считаю минором.' : '';
+    const altText = song.key.ambiguousMode ? t('third_amb') : '';
     if (r.source === 'manual') {
-      out.textContent = 'Задано вручную. Автоопределение: ' + A.keyName(song.key) + ' (' + score + ').';
+      out.textContent = t('key_manual', A.keyName(song.key), score);
     } else if (r.keyless) {
-      out.textContent = 'Без тональности. Лучшее совпадение ' + A.keyName(song.key) + ' всего ' + score + '.' + altText;
+      out.textContent = t('key_none', A.keyName(song.key), score, altText);
     } else {
-      out.textContent = 'Определено: ' + A.keyName(r) + ' (уверенность ' + score + ').' + altText;
+      out.textContent = t('key_auto', A.keyName(r), score, altText);
     }
   }
   function renderChips(s) {
@@ -89,16 +103,16 @@
     box.textContent = '';
     const cands = song && song.key && song.key.candidates ? song.key.candidates : [];
     if (!cands.length) { box.hidden = true; return; }
-    const label = document.createElement('small');
-    label.textContent = 'Если определено неверно, нажмите:';
-    label.style.flexBasis = '100%';
-    label.style.color = 'var(--muted)';
-    box.appendChild(label);
+    const lab = document.createElement('small');
+    lab.textContent = t('chips_key');
+    lab.style.flexBasis = '100%';
+    lab.style.color = 'var(--muted)';
+    box.appendChild(lab);
     cands.forEach((k) => {
       const b = document.createElement('button');
       b.type = 'button'; b.className = 'chip';
       b.textContent = A.keyName(k) + ' ';
-      if (k.tag) { const sm = document.createElement('small'); sm.textContent = k.tag; b.appendChild(sm); }
+      if (k.tag) { const sm = document.createElement('small'); sm.textContent = t('tag_bass'); b.appendChild(sm); }
       b.addEventListener('click', () => {
         song.keyOverride = k.tonic + '-' + k.mode;
         $('key-' + s).value = song.keyOverride;
@@ -114,11 +128,11 @@
     box.textContent = '';
     const cands = song && song.bpm && song.bpm.candidates ? song.bpm.candidates : [];
     if (!cands.length) { box.hidden = true; return; }
-    const label = document.createElement('small');
-    label.textContent = 'Другие возможные BPM:';
-    label.style.flexBasis = '100%';
-    label.style.color = 'var(--muted)';
-    box.appendChild(label);
+    const lab = document.createElement('small');
+    lab.textContent = t('chips_bpm');
+    lab.style.flexBasis = '100%';
+    lab.style.color = 'var(--muted)';
+    box.appendChild(lab);
     cands.forEach((c) => {
       const b = document.createElement('button');
       b.type = 'button'; b.className = 'chip';
@@ -133,7 +147,7 @@
     box.hidden = false;
   }
   function bpmChangeLines(song) {
-    return (song.bpmChanges || []).map((c) => 'с ' + fmtTime(c.start) + ' до ' + fmtTime(c.end) + ' BPM около ' + (+c.bpm.toFixed(1)));
+    return (song.bpmChanges || []).map((c) => t('bpm_line', fmtTime(c.start), fmtTime(c.end), +c.bpm.toFixed(1)));
   }
   function renderBpmChanges(s) {
     const song = state[s];
@@ -142,15 +156,15 @@
     const lines = bpmChangeLines(song);
     el.className = 'key-changes' + (lines.length ? ' has-changes' : '');
     el.textContent = lines.length
-      ? 'BPM меняется: ' + lines.join('; ') + '. Основной темп: ' + (+effectiveMainBpm(song).toFixed(3)) + '.'
-      : 'BPM не меняется.';
+      ? t('bpm_changes', lines.join('; '), +effectiveMainBpm(song).toFixed(3))
+      : t('bpm_same');
   }
   function effectiveMainBpm(song) { return A.effectiveBpm(song); }
   function fmtTime(t) {
     return Math.floor(t / 60) + ':' + String(Math.round(t % 60) % 60).padStart(2, '0');
   }
   function changeLines(song) {
-    return (song.keyChanges || []).map((c) => 'в ' + fmtTime(c.time) + ' с ' + A.keyName(c.from) + ' на ' + A.keyName(c.to));
+    return (song.keyChanges || []).map((c) => t('key_line', fmtTime(c.time), A.keyName(c.from), A.keyName(c.to)));
   }
   function renderChanges(s) {
     const song = state[s];
@@ -159,8 +173,8 @@
     const lines = changeLines(song);
     el.className = 'key-changes' + (lines.length ? ' has-changes' : '');
     el.textContent = lines.length
-      ? 'Тональность меняется: ' + lines.join('; ') + '. Для подгонки беру основную: ' + A.keyName(song.key) + '.'
-      : 'Тональность не меняется.';
+      ? t('key_changes', lines.join('; '), A.keyName(song.key))
+      : t('key_same');
   }
   function renderBpmInfo(s) {
     const song = state[s];
@@ -168,8 +182,8 @@
     if (!song) { out.textContent = ''; return; }
     const det = song.bpm && song.bpm.bpm ? song.bpm.bpm.toFixed(3) : null;
     out.textContent = song.bpmOverride
-      ? 'Задано вручную' + (det ? '. Автоопределение: ' + det : '')
-      : det ? 'Определено автоматически' : 'Не удалось определить, введите вручную';
+      ? t('bpm_manual', det)
+      : det ? t('bpm_auto') : t('bpm_fail');
   }
 
   // ---------- загрузка и анализ ----------
@@ -181,7 +195,7 @@
 
   async function decode(file) {
     const AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) throw new Error('Браузер не поддерживает обработку звука.');
+    if (!AC) throw new Error(t('no_audio'));
     if (!audioCtx) audioCtx = new AC();
     const data = await file.arrayBuffer();
     const buf = await new Promise((resolve, reject) => {
@@ -197,16 +211,17 @@
     const token = ++loadToken[s];
     state[s] = null;
     $('fields-' + s).hidden = true;
+    $('name-' + s).removeAttribute('data-i18n');
     $('name-' + s).textContent = file.name;
     $('name-' + s).parentElement.classList.add('has-file');
     hideResults();
     updateRunState();
-    setStatus(s, 'Читаю файл…');
+    setStatus(s, t('reading'));
     try {
       const audio = await decode(file);
       if (token !== loadToken[s]) return;
-      if (audio.channels[0].length < audio.sampleRate * 8) throw new Error('Песня слишком короткая, нужно хотя бы 8 секунд.');
-      setStatus(s, 'Определяю тональность и BPM…');
+      if (audio.channels[0].length < audio.sampleRate * 8) throw new Error(t('too_short'));
+      setStatus(s, t('analyzing'));
       await tick(); await tick();
       const mono = A.toMono(audio.channels, audio.sampleRate);
       const ak = A.analyzeKey(mono);
@@ -222,18 +237,21 @@
       $('fields-' + s).hidden = false;
       const mins = Math.floor(audio.channels[0].length / audio.sampleRate / 60);
       const secs = Math.round(audio.channels[0].length / audio.sampleRate % 60);
-      setStatus(s, 'Готово, длина ' + mins + ':' + String(secs).padStart(2, '0'), 'ok');
+      setStatus(s, t('done_len', mins + ':' + String(secs).padStart(2, '0')), 'ok');
     } catch (err) {
       if (token !== loadToken[s]) return;
       state[s] = null;
-      setStatus(s, err && err.message && !/decode/i.test(err.message) ? err.message : 'Не удалось прочитать файл. Попробуйте mp3, ogg или wav.', 'bad');
+      setStatus(s, err && err.message && !/decode/i.test(err.message) ? err.message : t('decode_fail'), 'bad');
     }
     updateRunState();
   }
 
+  let wasReady = false;
   function updateRunState() {
-    const ready = state.gd && state.reg && !busy;
+    const ready = !!(state.gd && state.reg && !busy);
     $('run').disabled = !ready;
+    if (ready && !wasReady) window.dispatchEvent(new CustomEvent('mash', { detail: 'ready' }));
+    wasReady = ready;
   }
 
   // ---------- результат ----------
@@ -269,9 +287,9 @@
     const audio = document.createElement('audio'); audio.controls = true; audio.preload = 'metadata'; audio.src = url;
     const btns = document.createElement('div'); btns.className = 'btns';
     const dl = document.createElement('a');
-    dl.className = 'btn'; dl.href = url; dl.download = fileBase + '.wav'; dl.textContent = 'Скачать WAV';
+    dl.className = 'btn'; dl.href = url; dl.download = fileBase + '.wav'; dl.textContent = t('dl_wav');
     const mp3 = document.createElement('button');
-    mp3.type = 'button'; mp3.className = 'btn'; mp3.textContent = 'Скачать MP3';
+    mp3.type = 'button'; mp3.className = 'btn'; mp3.textContent = t('dl_mp3');
     mp3.addEventListener('click', async () => {
       mp3.disabled = true;
       const old = mp3.textContent;
@@ -282,7 +300,7 @@
         document.body.appendChild(a); a.click(); a.remove();
         mp3.textContent = old;
       } catch (e) {
-        mp3.textContent = 'MP3 недоступен, скачайте WAV';
+        mp3.textContent = t('mp3_fail');
       }
       mp3.disabled = false;
     });
@@ -293,7 +311,7 @@
 
   $('run').addEventListener('click', () => {
     hideResults();
-    const res = A.plan(state.gd, state.reg, { pitchLimit: +pitchLimit.value, keyThreshold: +keyThreshold.value });
+    const res = A.plan(state.gd, state.reg, { pitchLimit: +pitchLimit.value, keyThreshold: +keyThreshold.value, lang: self.I18n.lang });
     if (res.error) { showError(res.error); return; }
     if (res.overLimit) {
       $('confirm-text').textContent = res.warnings[0];
@@ -323,7 +341,7 @@
       if (!lines.length) return;
       const li = document.createElement('li');
       li.className = 'warn';
-      li.textContent = LABEL[id] + ': тональность меняется ' + lines.join('; ') + '. Подгоняю по основной тональности ' + A.keyName(song.key) + '.';
+      li.textContent = t('key_changes_plan', label(id), lines.join('; '), A.keyName(song.key));
       plan.appendChild(li);
     });
     [['gd', gd], ['reg', reg]].forEach(([id, song]) => {
@@ -331,36 +349,39 @@
       if (!lines.length) return;
       const li = document.createElement('li');
       li.className = 'warn';
-      li.textContent = LABEL[id] + ': BPM меняется (' + lines.join('; ') + '). Подгоняю по основному темпу ' + (+A.effectiveBpm(song).toFixed(3)) + ', участки с другим темпом не совпадут.';
+      li.textContent = t('bpm_changes_plan', label(id), lines.join('; '), +A.effectiveBpm(song).toFixed(3));
       plan.appendChild(li);
     });
 
     try {
       let gdOut = gd.channels, regOut = reg.channels;
       if (res.semitones !== 0) {
-        setProgress('Сдвигаю питч GD Song…', 0);
-        gdOut = await Dsp.pitchShift(gd.channels, res.semitones, (f) => setProgress('Сдвигаю питч GD Song…', f));
+        setProgress(t('prog_pitch'), 0);
+        gdOut = await Dsp.pitchShift(gd.channels, res.semitones, (f) => setProgress(t('prog_pitch'), f));
       }
       if (res.tempoFactor !== 1) {
-        setProgress('Меняю темп обычной песни…', 0);
-        regOut = await Dsp.timeStretch(regOut, res.tempoFactor, (f) => setProgress('Меняю темп обычной песни…', f));
+        setProgress(t('prog_tempo'), 0);
+        regOut = await Dsp.timeStretch(regOut, res.tempoFactor, (f) => setProgress(t('prog_tempo'), f));
       }
-      setProgress('Готовлю файлы…', 1);
+      setProgress(t('prog_files'), 1);
       await tick();
       const sign = res.semitones > 0 ? '+' : '';
       addOutput('GD Song',
-        res.semitones === 0 ? 'Питч не менялся.' : 'Питч ' + sign + res.semitones + ' ' + plural(res.semitones) + ', темп не менялся.',
+        res.semitones === 0 ? t('out_pitch_none') : t('out_pitch', sign, res.semitones, plural(res.semitones)),
         baseName(gd.name) + (res.semitones === 0 ? '_original' : '_' + sign + res.semitones + 'st'),
         gdOut, gd.sampleRate);
       const target = A.effectiveBpm(reg) * res.tempoFactor;
-      addOutput('Обычная песня',
-        (res.tempoFactor === 1 ? 'Темп не менялся.' : 'Темп изменён до ' + (+target.toFixed(3)) + ' BPM, питч не менялся.') + '',
+      addOutput(t('label_reg'),
+        res.tempoFactor === 1 ? t('out_tempo_none') : t('out_tempo', +target.toFixed(3)),
         baseName(reg.name) + (res.tempoFactor === 1 ? '_original' : '_' + Math.round(target) + 'bpm'),
         regOut, reg.sampleRate);
       $('progress').hidden = true;
+      window.dispatchEvent(new CustomEvent('mash', { detail: 'done' }));
     } catch (err) {
       $('progress').hidden = true;
-      showError('Не удалось обработать песни: ' + (err && err.message ? err.message : 'неизвестная ошибка') + '. Возможно, не хватило памяти, попробуйте песни покороче.');
+      showError(t('process_fail', err && err.message ? err.message : t('unknown_err')));
+      busy = false; updateRunState();
+      return;
     }
     busy = false; updateRunState();
   }

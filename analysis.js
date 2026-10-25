@@ -567,7 +567,8 @@
   }
 
   // ---------- Подгонка ----------
-  function semis(n) {
+  function semis(n, lang) {
+    if (lang === 'en') return (n > 0 ? '+' : '') + n + (Math.abs(n) === 1 ? ' semitone' : ' semitones');
     const a = Math.abs(n) % 100, b = a % 10;
     const w = a > 10 && a < 20 ? 'полутонов' : b === 1 ? 'полутон' : b >= 2 && b <= 4 ? 'полутона' : 'полутонов';
     return (n > 0 ? '+' : '') + n + ' ' + w;
@@ -594,41 +595,45 @@
 
   /**
    * GD Song подгоняется по тональности к обычной песне, обычная песня по темпу к GD Song.
-   * Возвращает { error } или { semitones, tempoFactor, ... }.
+   * Возвращает { error } или { semitones, tempoFactor, ... }. opts.lang: 'ru' (по умолчанию) или 'en'.
    */
   function plan(gd, reg, opts) {
     const { pitchLimit, keyThreshold } = opts;
+    const en = opts.lang === 'en';
     const gk = resolveKey(gd, keyThreshold, true), rk = resolveKey(reg, keyThreshold, false);
     const gBpm = effectiveBpm(gd), rBpm = effectiveBpm(reg);
     if (!(gBpm > 0) || !(rBpm > 0)) {
-      return { error: 'Не удалось определить BPM. Введите его вручную.' };
+      return { error: en ? 'Could not detect the BPM. Enter it manually.' : 'Не удалось определить BPM. Введите его вручную.' };
     }
     const warnings = [];
     let semitones = 0, keyNote, overLimit = false;
 
     if (gk.keyless || rk.keyless) {
-      const who = gk.keyless && rk.keyless ? 'У обеих песен нет тональности'
-        : gk.keyless ? 'У GD Song нет тональности' : 'У обычной песни нет тональности';
-      keyNote = who + ', питч не меняю.';
+      const who = en
+        ? (gk.keyless && rk.keyless ? 'Neither song has a key' : gk.keyless ? 'The GD Song has no key' : 'The regular song has no key')
+        : (gk.keyless && rk.keyless ? 'У обеих песен нет тональности' : gk.keyless ? 'У GD Song нет тональности' : 'У обычной песни нет тональности');
+      keyNote = en ? who + ', leaving the pitch as is.' : who + ', питч не меняю.';
     } else {
       if (gk.mode !== rk.mode) {
+        const mode = (m) => en ? m : (m === 'minor' ? 'минор' : 'мажор');
         return {
-          error: 'Ошибка: у GD Song ' + (gk.mode === 'minor' ? 'минор' : 'мажор') + ' (' + keyName(gk) +
-            '), а у обычной песни ' + (rk.mode === 'minor' ? 'минор' : 'мажор') + ' (' + keyName(rk) +
-            '). Такие песни не подгоняются.',
+          error: en
+            ? 'Error: the GD Song is ' + gk.mode + ' (' + keyName(gk) + ') but the regular song is ' + rk.mode + ' (' + keyName(rk) + '). These songs cannot be matched.'
+            : 'Ошибка: у GD Song ' + mode(gk.mode) + ' (' + keyName(gk) + '), а у обычной песни ' + mode(rk.mode) + ' (' + keyName(rk) + '). Такие песни не подгоняются.',
         };
       }
       let d = (((rk.tonic - gk.tonic) % 12) + 12) % 12;
       if (d > 6) d -= 12;
       if (Math.abs(d) > pitchLimit) {
         overLimit = true;
-        warnings.push('Внимание: GD Song нужно сдвинуть на ' + semis(d) + ', это больше вашей границы ±' + pitchLimit +
-          '. Звук может исказиться.');
+        warnings.push(en
+          ? 'Warning: the GD Song needs to move by ' + semis(d, 'en') + ', which is beyond your limit of ±' + pitchLimit + '. The sound may get distorted.'
+          : 'Внимание: GD Song нужно сдвинуть на ' + semis(d) + ', это больше вашей границы ±' + pitchLimit + '. Звук может исказиться.');
       }
       semitones = d;
       keyNote = d === 0
-        ? 'Тональность уже совпадает (' + keyName(rk) + '), питч не меняю.'
-        : 'GD Song: ' + keyName(gk) + ' → ' + keyName(rk) + ' (' + semis(d) + ').';
+        ? (en ? 'The key already matches (' + keyName(rk) + '), leaving the pitch as is.' : 'Тональность уже совпадает (' + keyName(rk) + '), питч не меняю.')
+        : 'GD Song: ' + keyName(gk) + ' → ' + keyName(rk) + ' (' + semis(d, en ? 'en' : 'ru') + ').';
     }
 
     // Темп: 65 и 130 считаются одним и тем же, поэтому сравниваем с точностью до октавы.
@@ -637,13 +642,21 @@
     const tempoFactor = target / rBpm;
     let tempoNote;
     if (Math.abs(tempoFactor - 1) < 0.0005) {
-      tempoNote = 'Темп уже совпадает (' + +rBpm.toFixed(3) + ' и ' + +gBpm.toFixed(3) + ' BPM), обычную песню не меняю.';
+      tempoNote = en
+        ? 'The tempo already matches (' + +rBpm.toFixed(3) + ' and ' + +gBpm.toFixed(3) + ' BPM), leaving the regular song as is.'
+        : 'Темп уже совпадает (' + +rBpm.toFixed(3) + ' и ' + +gBpm.toFixed(3) + ' BPM), обычную песню не меняю.';
     } else {
       const pct = Math.abs(tempoFactor - 1) * 100;
-      tempoNote = 'Обычная песня: ' + (+rBpm.toFixed(3)) + ' → ' + (+target.toFixed(3)) +
-        ' BPM (' + (tempoFactor > 1 ? 'быстрее' : 'медленнее') + ' на ' + pct.toFixed(2) + '%, коэффициент ' + tempoFactor.toFixed(5) + ').';
-      if (k !== 0) tempoNote += ' ' + (k > 0 ? 'Темп GD Song вдвое' : 'Темп обычной песни вдвое') + ' выше, это считается совпадением.';
-      if (pct > 25) warnings.push('Темп меняется сильно, качество звука может ухудшиться.');
+      tempoNote = en
+        ? 'Regular song: ' + (+rBpm.toFixed(3)) + ' → ' + (+target.toFixed(3)) + ' BPM (' + (tempoFactor > 1 ? 'faster' : 'slower') + ' by ' + pct.toFixed(2) + '%, factor ' + tempoFactor.toFixed(5) + ').'
+        : 'Обычная песня: ' + (+rBpm.toFixed(3)) + ' → ' + (+target.toFixed(3)) +
+          ' BPM (' + (tempoFactor > 1 ? 'быстрее' : 'медленнее') + ' на ' + pct.toFixed(2) + '%, коэффициент ' + tempoFactor.toFixed(5) + ').';
+      if (k !== 0) {
+        tempoNote += en
+          ? ' ' + (k > 0 ? 'The GD Song tempo is double' : 'The regular song tempo is double') + ', which counts as a match.'
+          : ' ' + (k > 0 ? 'Темп GD Song вдвое' : 'Темп обычной песни вдвое') + ' выше, это считается совпадением.';
+      }
+      if (pct > 25) warnings.push(en ? 'The tempo changes a lot, so the sound quality may get worse.' : 'Темп меняется сильно, качество звука может ухудшиться.');
     }
     return { overLimit, semitones, tempoFactor: Math.abs(tempoFactor - 1) < 0.0005 ? 1 : tempoFactor, keyNote, tempoNote, warnings };
   }
