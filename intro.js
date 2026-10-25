@@ -286,7 +286,200 @@
     return () => clearInterval(timer);
   }
 
-  const DEMOS = { scale: demoScale, mode: demoMode, shift: demoShift, tap: demoTap, beats: demoBeats };
+
+  function demoSemitone(box) {
+    const p = piano();
+    const cap = h('p', 'demo-cap', '');
+    cap.setAttribute('aria-live', 'polite');
+    const btn = h('button', 'btn small', t('listen'));
+    btn.type = 'button';
+    box.appendChild(p.root); box.appendChild(cap); box.appendChild(btn);
+    const STAGES = [[0, 1, 'semi_1'], [0, 2, 'semi_2'], [0, 12, 'semi_3']];
+    let k = 0, timer = null;
+    function show(i, sound) {
+      k = i;
+      const [a, b, key] = STAGES[i];
+      p.clear();
+      p.keys[a].classList.add('on'); p.keys[b].classList.add('on');
+      cap.textContent = t(key);
+      if (sound) { tone(a, 0, 0.5); tone(b, 0.45, 0.6); }
+    }
+    function loop() { show((k + 1) % STAGES.length); timer = setTimeout(loop, 2800); }
+    show(0);
+    if (!reduce) timer = setTimeout(loop, 2800);
+    btn.addEventListener('click', () => { clearTimeout(timer); show(k, true); timer = reduce ? null : setTimeout(loop, 3200); });
+    return () => clearTimeout(timer);
+  }
+
+  const PCS = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
+  const MAJ_STEPS = [0, 2, 4, 5, 7, 9, 11], MIN_STEPS = [0, 2, 3, 5, 7, 8, 10];
+
+  function demoFormula(box) {
+    const p = piano();
+    const q = h('p', 'demo-cap', t('tonic_pick'));
+    const chips = h('div', 'chips pcs');
+    const seg = h('div', 'seg');
+    const bMaj = h('button', '', t('major')), bMin = h('button', '', t('minor'));
+    bMaj.type = 'button'; bMin.type = 'button';
+    seg.appendChild(bMaj); seg.appendChild(bMin);
+    const cap = h('p', 'demo-cap', '');
+    cap.setAttribute('aria-live', 'polite');
+    const pat = h('p', 'demo-pattern', '');
+    const btn = h('button', 'btn small', t('listen'));
+    btn.type = 'button';
+    const chipEls = PCS.map((n, i) => {
+      const c = h('button', 'chip', n);
+      c.type = 'button';
+      c.addEventListener('click', () => { stop(); tonic = i; draw(); });
+      chips.appendChild(c);
+      return c;
+    });
+    box.appendChild(q); box.appendChild(chips); box.appendChild(seg); box.appendChild(p.root);
+    box.appendChild(cap); box.appendChild(pat); box.appendChild(btn);
+    let tonic = 0, mode = 'major', timer = null;
+    function scale() { return (mode === 'major' ? MAJ_STEPS : MIN_STEPS).map((d) => (tonic + d) % 12); }
+    function draw() {
+      const pcs = scale();
+      p.clear();
+      Object.keys(p.keys).forEach((s) => {
+        const pc = s % 12;
+        const key = p.keys[s];
+        key.classList.toggle('tonic', pc === tonic);
+        if (pcs.indexOf(pc) >= 0) { key.style.transitionDelay = (reduce ? 0 : pcs.indexOf(pc) * 30) + 'ms'; key.classList.add('on'); }
+      });
+      chipEls.forEach((c, i) => c.setAttribute('aria-pressed', String(i === tonic)));
+      bMaj.setAttribute('aria-pressed', String(mode === 'major'));
+      bMin.setAttribute('aria-pressed', String(mode === 'minor'));
+      cap.textContent = PCS[tonic] + ' ' + (mode === 'major' ? 'major' : 'minor') + ': ' + pcs.map((x) => PCS[x]).join(' ');
+      pat.textContent = t(mode === 'major' ? 'pattern_major' : 'pattern_minor');
+    }
+    function stop() { clearInterval(timer); timer = null; }
+    bMaj.addEventListener('click', () => { stop(); mode = 'major'; draw(); });
+    bMin.addEventListener('click', () => { stop(); mode = 'minor'; draw(); });
+    btn.addEventListener('click', () => {
+      const steps = (mode === 'major' ? MAJ_STEPS : MIN_STEPS).map((d) => tonic + d).concat([tonic + 12]);
+      steps.forEach((x, idx) => tone(x, idx * 0.33, 0.5));
+    });
+    draw();
+    if (!reduce) timer = setInterval(() => { tonic = (tonic + 7) % 12; draw(); }, 3200);
+    return stop;
+  }
+
+  function demoRelative(box) {
+    const p = piano();
+    const seg = h('div', 'seg');
+    const bC = h('button', '', 'C major'), bA = h('button', '', 'A minor');
+    bC.type = 'button'; bA.type = 'button';
+    seg.appendChild(bC); seg.appendChild(bA);
+    const cap = h('p', 'demo-cap', '');
+    cap.setAttribute('aria-live', 'polite');
+    const btn = h('button', 'btn small', t('listen'));
+    btn.type = 'button';
+    box.appendChild(seg); box.appendChild(p.root); box.appendChild(cap); box.appendChild(btn);
+    const NOTESET = [0, 2, 4, 5, 7, 9, 11];
+    let tonic = 0, timer = null;
+    function draw() {
+      p.clear();
+      Object.keys(p.keys).forEach((s) => {
+        const key = p.keys[s], pc = s % 12;
+        key.classList.toggle('tonic', pc === tonic);
+        if (NOTESET.indexOf(pc) >= 0) key.classList.add('on');
+      });
+      bC.setAttribute('aria-pressed', String(tonic === 0));
+      bA.setAttribute('aria-pressed', String(tonic === 9));
+      cap.textContent = t('rel_same') + ': ' + t('rel_tonic') + ' ' + PCS[tonic];
+    }
+    function stop() { clearInterval(timer); timer = null; }
+    bC.addEventListener('click', () => { stop(); tonic = 0; draw(); });
+    bA.addEventListener('click', () => { stop(); tonic = 9; draw(); });
+    btn.addEventListener('click', () => {
+      const order = tonic === 0 ? [0, 2, 4, 5, 7, 9, 11, 12] : [-3, -1, 0, 2, 4, 5, 7, 9];
+      order.forEach((s, idx) => tone(s, idx * 0.33, 0.5));
+    });
+    draw();
+    if (!reduce) timer = setInterval(() => { tonic = tonic === 0 ? 9 : 0; draw(); }, 3200);
+    return stop;
+  }
+
+  function demoLimit(box) {
+    const NEED = 5;
+    const lab = h('label', 'lim-label', t('lim_label'));
+    lab.htmlFor = 'demo-limit';
+    const row = h('div', 'range-row');
+    const inp = document.createElement('input');
+    inp.type = 'range'; inp.min = '0'; inp.max = '6'; inp.step = '1'; inp.value = '4'; inp.id = 'demo-limit';
+    const out = h('output', '', '');
+    row.appendChild(inp); row.appendChild(out);
+    const bar = h('div', 'limbar');
+    bar.setAttribute('aria-hidden', 'true');
+    const cells = [];
+    for (let i = 0; i <= 6; i++) {
+      const c = h('div', 'limcell');
+      c.appendChild(h('span', '', String(i)));
+      bar.appendChild(c); cells.push(c);
+    }
+    const need = h('p', 'demo-cap', t('lim_need', NEED));
+    const verdict = h('p', 'lim-verdict', '');
+    verdict.setAttribute('aria-live', 'polite');
+    box.appendChild(lab); box.appendChild(row); box.appendChild(bar); box.appendChild(need); box.appendChild(verdict);
+    function draw() {
+      const L = +inp.value;
+      out.textContent = '±' + L;
+      cells.forEach((c, i) => {
+        c.classList.toggle('inside', i <= L);
+        c.classList.toggle('need', i === NEED);
+      });
+      const over = NEED > L;
+      verdict.textContent = over ? t('lim_over', L) : t('lim_ok');
+      verdict.classList.toggle('over', over);
+    }
+    inp.addEventListener('input', draw);
+    draw();
+    return () => {};
+  }
+
+  function demoOctave(box) {
+    const N = 8, SP = 11;
+    const lanes = h('div', 'lanes');
+    lanes.setAttribute('aria-hidden', 'true');
+    function lane(label, cls, count, spacing) {
+      lanes.appendChild(h('div', 'lane-label', label));
+      const l = h('div', 'lane');
+      const ticks = [];
+      for (let i = 0; i < count; i++) {
+        const tk = h('span', 'tick ' + cls);
+        tk.style.left = (i * spacing) + '%';
+        tk.style.transition = 'background 0.15s, transform 0.15s';
+        l.appendChild(tk); ticks.push(tk);
+      }
+      lanes.appendChild(l);
+      return ticks;
+    }
+    const slow = lane(t('oct_65'), 'gd', N / 2, SP * 2);
+    const fast = lane(t('oct_130'), 'reg', N, SP);
+    for (let i = 0; i < N / 2; i++) {
+      const g = h('span', 'guide');
+      g.style.left = (i * SP * 2) + '%';
+      g.style.opacity = '0.8';
+      lanes.appendChild(g);
+    }
+    const cap = h('p', 'demo-cap', t('oct_cap'));
+    box.appendChild(lanes); box.appendChild(cap);
+    let i = 0, timer = null;
+    function flash() {
+      slow.concat(fast).forEach((tk) => { tk.style.transform = ''; tk.style.opacity = ''; });
+      fast[i].style.transform = 'scaleY(1.25)';
+      if (i % 2 === 0) { slow[i / 2].style.transform = 'scaleY(1.25)'; }
+      slow.forEach((tk, k) => { tk.style.opacity = k === i / 2 ? '1' : '0.55'; });
+      fast.forEach((tk, k) => { tk.style.opacity = k === i ? '1' : '0.55'; });
+      i = (i + 1) % N;
+    }
+    if (!reduce) { flash(); timer = setInterval(flash, 450); }
+    return () => clearInterval(timer);
+  }
+
+  const DEMOS = { scale: demoScale, mode: demoMode, shift: demoShift, tap: demoTap, beats: demoBeats,
+    semitone: demoSemitone, formula: demoFormula, relative: demoRelative, limit: demoLimit, octave: demoOctave };
 
   // ---------- вступление ----------
   const intro = $('intro'), card = $('intro-card');
