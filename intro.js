@@ -585,7 +585,10 @@
     const nav = h('div', 'nav');
     const next = h('button', 'primary', i === steps.length - 1 ? t('finish') : t('next'));
     next.type = 'button';
-    next.addEventListener('click', () => { if (i === steps.length - 1) closeIntro(); else renderTut(i + 1); });
+    next.addEventListener('click', () => {
+      if (i === steps.length - 1) { try { localStorage.setItem('mashaper.tutDone', '1'); } catch (e) { /* без хранилища покажем снова */ } closeIntro(); }
+      else renderTut(i + 1);
+    });
     nav.appendChild(next);
     if (i > 0) {
       const back = h('button', 'btn', t('back'));
@@ -672,5 +675,14 @@
     else if (e.detail === 'done') wake(t('wake_done'), 4500);
   });
 
-  openIntro('lang');
+  let tutDone = false;
+  try { tutDone = localStorage.getItem('mashaper.tutDone') === '1'; } catch (e) { /* ок */ }
+  document.documentElement.classList.remove('no-intro');
+  if (tutDone) {
+    introOpen = false;
+    intro.hidden = true;
+    reset();
+  } else {
+    openIntro('lang');
+  }
 })();
