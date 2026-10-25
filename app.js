@@ -197,7 +197,6 @@
     const token = ++loadToken[s];
     state[s] = null;
     $('fields-' + s).hidden = true;
-    if (s === 'reg') $('strip-wrap').hidden = true;
     $('name-' + s).textContent = file.name;
     $('name-' + s).parentElement.classList.add('has-file');
     hideResults();
@@ -221,7 +220,6 @@
       $('bpm-' + s).value = bpm.bpm ? bpm.bpm.toFixed(3) : '';
       renderKeyInfo(s); renderBpmInfo(s); renderChanges(s); renderChips(s); renderBpmChips(s); renderBpmChanges(s);
       $('fields-' + s).hidden = false;
-      if (s === 'reg') { $('strip-wrap').hidden = false; }
       const mins = Math.floor(audio.channels[0].length / audio.sampleRate / 60);
       const secs = Math.round(audio.channels[0].length / audio.sampleRate % 60);
       setStatus(s, 'Готово, длина ' + mins + ':' + String(secs).padStart(2, '0'), 'ok');
@@ -310,13 +308,11 @@
 
   async function process(res) {
     const gd = state.gd, reg = state.reg;
-    const strip = $('strip-reg').checked;
-    let stripSkipped = false;
     busy = true; updateRunState();
     $('result').hidden = false;
     const plan = $('plan');
     plan.textContent = '';
-    [res.keyNote, res.tempoNote].concat(strip ? ['Обычная песня: оставляю только акапеллу.'] : []).concat(res.warnings.map((w) => w)).forEach((t, i) => {
+    [res.keyNote, res.tempoNote].concat(res.warnings.map((w) => w)).forEach((t, i) => {
       const li = document.createElement('li');
       li.textContent = t;
       if (res.warnings.includes(t)) li.className = 'warn';
@@ -345,22 +341,6 @@
         setProgress('Сдвигаю питч GD Song…', 0);
         gdOut = await Dsp.pitchShift(gd.channels, res.semitones, (f) => setProgress('Сдвигаю питч GD Song…', f));
       }
-      if (strip) {
-        setProgress('Выделяю акапеллу…', 0);
-        try {
-          regOut = (await Dsp.removeInstrumental(reg.channels, reg.sampleRate, (f) => setProgress('Выделяю акапеллу…', f))).channels;
-        } catch (err) {
-          if (!err.mono) {
-            $('progress').hidden = true;
-            $('result').hidden = true;
-            showError('Не удалось убрать инструментал. ' + err.message);
-            busy = false; updateRunState();
-            return;
-          }
-          // Моно или почти моно: считаем, что это уже акапелла, и оставляем как есть
-          stripSkipped = true;
-        }
-      }
       if (res.tempoFactor !== 1) {
         setProgress('Меняю темп обычной песни…', 0);
         regOut = await Dsp.timeStretch(regOut, res.tempoFactor, (f) => setProgress('Меняю темп обычной песни…', f));
@@ -374,8 +354,8 @@
         gdOut, gd.sampleRate);
       const target = A.effectiveBpm(reg) * res.tempoFactor;
       addOutput('Обычная песня',
-        (res.tempoFactor === 1 ? 'Темп не менялся.' : 'Темп изменён до ' + (+target.toFixed(3)) + ' BPM, питч не менялся.') + (strip ? (stripSkipped ? ' Песня моно, считаю её акапеллой и не меняю.' : ' Остался только вокал.') : ''),
-        baseName(reg.name) + (strip && !stripSkipped ? '_acapella' : '') + (res.tempoFactor === 1 ? (strip && !stripSkipped ? '' : '_original') : '_' + Math.round(target) + 'bpm'),
+        (res.tempoFactor === 1 ? 'Темп не менялся.' : 'Темп изменён до ' + (+target.toFixed(3)) + ' BPM, питч не менялся.') + '',
+        baseName(reg.name) + (res.tempoFactor === 1 ? '_original' : '_' + Math.round(target) + 'bpm'),
         regOut, reg.sampleRate);
       $('progress').hidden = true;
     } catch (err) {

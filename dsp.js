@@ -3,7 +3,6 @@
   'use strict';
 
   const tick = () => new Promise((r) => setTimeout(r, 0));
-  const fftFn = typeof require !== 'undefined' ? require('./analysis.js').fft : root.MashaperAnalysis.fft;
 
   function hannPeriodic(n) {
     const w = new Float32Array(n);
@@ -128,69 +127,7 @@
   }
 
 
-  /**
-   * Убирает инструментал: оставляет то, что звучит по центру стереопанорамы (обычно вокал),
-   * гасит боковые инструменты и бас ниже ~250 Гц.
-   * Это не нейросеть: ударные, синтезаторы и другие инструменты по центру останутся.
-   * Для моно-записи бросает ошибку.
-   */
-  async function removeInstrumental(chs, sr, onProgress) {
-    if (chs.length < 2) { const e = new Error('Песня моно.'); e.mono = true; throw e; }
-    const L = chs[0], R = chs[1], len = L.length;
-    let em = 0, es = 0;
-    for (let i = 0; i < len; i += 7) { const m = L[i] + R[i], d = L[i] - R[i]; em += m * m; es += d * d; }
-    const sideRatio = em > 0 ? es / em : 0;
-    if (sideRatio < 1e-4) { const e = new Error('Песня почти моно.'); e.mono = true; throw e; }
-
-    const N = 4096, H = N / 4, K = Math.min(N / 2 - 1, Math.floor(10000 * N / sr));
-    const win = new Float64Array(N);
-    for (let i = 0; i < N; i++) win[i] = Math.sqrt(0.5 - 0.5 * Math.cos(2 * Math.PI * i / N));
-    const hp = new Float64Array(K + 1);
-    for (let k = 0; k <= K; k++) {
-      const f = k * sr / N;
-      hp[k] = f <= 120 ? 0 : f >= 260 ? 1 : (f - 120) / 140;
-    }
-    const out = new Float32Array(len + N);
-    const lr = new Float64Array(N), li = new Float64Array(N), rr = new Float64Array(N), ri = new Float64Array(N);
-    const yr = new Float64Array(N), yi = new Float64Array(N);
-    const total = Math.ceil((len + N) / H);
-    let last = Date.now();
-    for (let f = 0; f < total; f++) {
-      const start = f * H - N + H;
-      for (let i = 0; i < N; i++) {
-        const p = start + i;
-        if (p >= 0 && p < len) { lr[i] = L[p] * win[i]; rr[i] = R[p] * win[i]; } else { lr[i] = 0; rr[i] = 0; }
-        li[i] = 0; ri[i] = 0;
-      }
-      fftFn(lr, li); fftFn(rr, ri);
-      yr.fill(0); yi.fill(0);
-      for (let k = 1; k <= K; k++) {
-        if (hp[k] === 0) continue;
-        const dr = lr[k] - rr[k], di = li[k] - ri[k];
-        const tot = Math.hypot(lr[k], li[k]) + Math.hypot(rr[k], ri[k]) + 1e-12;
-        let sim = 1 - Math.hypot(dr, di) / tot;
-        if (sim < 0) sim = 0;
-        const g = sim * sim * hp[k];
-        yr[k] = 0.5 * (lr[k] + rr[k]) * g; yi[k] = 0.5 * (li[k] + ri[k]) * g;
-        yr[N - k] = yr[k]; yi[N - k] = -yi[k];
-      }
-      for (let k = 0; k < N; k++) yi[k] = -yi[k];
-      fftFn(yr, yi);
-      for (let i = 0; i < N; i++) {
-        const p = start + i;
-        if (p >= 0 && p < len) out[p] += (yr[i] / N) * win[i] * 0.5;
-      }
-      if ((f & 63) === 0 && Date.now() - last > 40) {
-        if (onProgress) onProgress(f / total);
-        await tick(); last = Date.now();
-      }
-    }
-    if (onProgress) onProgress(1);
-    const mono = out.subarray(0, len);
-    return { channels: [mono, mono.slice()], sideRatio };
-  }
-
-  const api = { timeStretch, resample, pitchShift, removeInstrumental };
+  const api = { timeStretch, resample, pitchShift };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.MashaperDsp = api;
 })(typeof self !== 'undefined' ? self : this);
