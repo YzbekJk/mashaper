@@ -216,10 +216,10 @@ canvas.mash {
   background:
     radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--accent) 22%, transparent) 1px, transparent 1.5px) 0 0 / 22px 22px,
     var(--bg);
-  --px: calc(30vh / 43);
+  --px: calc(34vh / 88);
   transition: opacity 0.35s;
 }
-.intro[data-size="lg"] { --px: calc(50vh / 43); }
+.intro[data-size="lg"] { --px: calc(50vh / 88); }
 .intro.closing { opacity: 0; pointer-events: none; }
 .intro-inner { margin: auto; width: 100%; max-width: 980px; display: flex; flex-direction: column; gap: 18px; }
 .wordmark { font: 600 1.5rem/1 var(--font-display); letter-spacing: -0.03em; }

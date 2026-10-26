@@ -22,7 +22,7 @@
   window.addEventListener('langchange', markLang);
 
   // ---------- звук (только по нажатию кнопок) ----------
-  let ac = null;
+  let ac = null, grooveFn = null;
   function audio() {
     if (!ac) {
       const C = window.AudioContext || window.webkitAudioContext;
@@ -35,6 +35,7 @@
   function tone(semi, at, dur, vol) {
     const a = audio();
     if (!a) return;
+    if (grooveFn) grooveFn(700);
     const t0 = a.currentTime + (at || 0);
     const o = a.createOscillator(), g = a.createGain();
     o.type = 'triangle';
@@ -48,6 +49,7 @@
   function clickSound() {
     const a = audio();
     if (!a) return;
+    if (grooveFn) grooveFn(350);
     const t0 = a.currentTime;
     const o = a.createOscillator(), g = a.createGain();
     o.type = 'square'; o.frequency.value = 1200;
@@ -483,7 +485,8 @@
 
   // ---------- вступление ----------
   const intro = $('intro'), card = $('intro-card');
-  const introMash = new M.Mash($('mash-intro'), 'wave');
+  const introMash = new M.MashHD($('mash-intro'), 'wave');
+  grooveFn = (ms) => introMash.groove(ms);
   let cleanup = null, cancelType = null, lastFocus = null, introOpen = true;
 
   function reset() {
@@ -516,6 +519,8 @@
     return finish;
   }
 
+  const POSE_BY_DEMO = { semitone: 'point', scale: 'talk', formula: 'think', mode: 'talk', relative: 'point', shift: 'point', limit: 'point', tap: 'talk', octave: 'point', beats: 'point' };
+
   function renderLang() {
     reset();
     intro.dataset.size = 'md';
@@ -538,7 +543,7 @@
   function renderExp() {
     reset();
     intro.dataset.size = 'md';
-    introMash.setPose('talk');
+    introMash.setPose('think');
     const q = h('h2', 'q', t('exp_q'));
     q.id = 'intro-title';
     const row = h('div', 'choices');
@@ -561,7 +566,7 @@
     const steps = t('tut');
     const s = steps[i];
     intro.dataset.size = 'lg';
-    introMash.setPose(s.pose);
+    introMash.setPose(POSE_BY_DEMO[s.demo] || (s.pose === 'talk' ? 'think' : s.pose));
     card.classList.add('tut');
     const count = h('div', 'step-count', (i + 1) + ' / ' + steps.length);
     const title = h('h2', 'q', s.title);
