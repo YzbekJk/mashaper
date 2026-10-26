@@ -342,8 +342,8 @@
       chips.appendChild(c);
       return c;
     });
-    box.appendChild(q); box.appendChild(chips); box.appendChild(seg); box.appendChild(p.root);
-    box.appendChild(cap); box.appendChild(pat); box.appendChild(btn);
+    box.appendChild(q); box.appendChild(chips); box.appendChild(p.root);
+    box.appendChild(cap); box.appendChild(btn);
     let tonic = 0, mode = 'major', timer = null;
     function scale() { return (mode === 'major' ? MAJ_STEPS : MIN_STEPS).map((d) => (tonic + d) % 12); }
     function draw() {
