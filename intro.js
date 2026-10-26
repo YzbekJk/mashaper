@@ -14,6 +14,12 @@
   }
 
   I.apply();
+  function renderVersion() {
+    const V = self.MASHAPER_VERSION;
+    $('version').textContent = V ? t('version') + ' ' + V.v + ' · ' + V.date.split('-').reverse().join('.') : '';
+  }
+  renderVersion();
+  window.addEventListener('langchange', renderVersion);
   function markLang() {
     document.querySelectorAll('[data-lang]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.lang === I.lang)));
   }

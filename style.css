@@ -358,3 +358,5 @@ canvas.mash {
 .lim-verdict.over { color: var(--err-fg); }
 
 .no-intro #intro { display: none; }
+
+.version { margin: -8px 0 0; font: 500 0.75rem var(--font-mono); color: var(--muted); }
