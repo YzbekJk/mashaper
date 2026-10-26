@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Мэшапер</title>
+<link rel="icon" href="logo.svg" type="image/svg+xml">
+<link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32">
+<link rel="shortcut icon" href="favicon.ico">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#D6226F">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700&family=JetBrains+Mono:wght@500&family=Unbounded:wght@600&display=swap">
@@ -14,7 +19,10 @@
 <main>
   <header>
     <div class="titlerow">
-      <h1>Мэш<span>апер</span></h1>
+      <div class="brand">
+        <img class="logo" src="logo.svg" alt="" width="48" height="48">
+        <h1>Мэш<span>апер</span></h1>
+      </div>
       <div class="tools">
         <div class="lang-toggle" role="group" aria-label="Language / Язык">
           <button type="button" data-lang="ru" aria-pressed="true">RU</button>
@@ -139,7 +147,7 @@
 
 <div id="intro" class="intro" data-size="md" role="dialog" aria-modal="true" aria-labelledby="intro-title">
   <div class="intro-inner">
-    <div class="wordmark" aria-hidden="true">Мэш<span>апер</span></div>
+    <div class="wordmark" aria-hidden="true"><img class="logo" src="logo.svg" alt="" width="32" height="32">Мэш<span>апер</span></div>
     <div class="intro-stage">
       <canvas id="mash-intro" class="mash" width="64" height="88" aria-hidden="true"></canvas>
       <div class="intro-card" id="intro-card"></div>

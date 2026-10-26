@@ -360,3 +360,8 @@ canvas.mash {
 .no-intro #intro { display: none; }
 
 .version { margin: -8px 0 0; font: 500 0.75rem var(--font-mono); color: var(--muted); }
+
+.brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.logo { display: block; flex: none; image-rendering: pixelated; border-radius: 6px; }
+.brand .logo { width: clamp(36px, 9vw, 56px); height: auto; }
+.wordmark { display: flex; align-items: center; gap: 10px; }
