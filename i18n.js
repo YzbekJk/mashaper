@@ -24,7 +24,7 @@
       confirm_yes: 'Всё равно подогнать',
       confirm_no: 'Отмена',
       result: 'Результат',
-      footer: 'Всё считается в вашем браузере, файлы никуда не отправляются.',
+      footer: 'Подгонка считается в вашем браузере, файлы не отправляются. Файл уходит на сервер только если вы сами загружаете мешап.',
       help_btn: 'Обучение',
       version: 'Версия',
       auto: 'Авто',
@@ -170,7 +170,7 @@
       confirm_yes: 'Match anyway',
       confirm_no: 'Cancel',
       result: 'Result',
-      footer: 'Everything is computed in your browser. Your files are never uploaded.',
+      footer: 'Matching runs in your browser and your files are not uploaded. A file goes to the server only when you upload a mashup yourself.',
       help_btn: 'Tutorial',
       version: 'Version',
       auto: 'Auto',
@@ -306,6 +306,9 @@
     const v = D[lang][key] !== undefined ? D[lang][key] : D.ru[key];
     return typeof v === 'function' ? v.apply(null, args) : v;
   }
+  function extend(dict) {
+    Object.keys(dict).forEach((l) => { if (D[l]) Object.assign(D[l], dict[l]); });
+  }
   function apply() {
     document.documentElement.lang = lang;
     document.querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = t(el.getAttribute('data-i18n')); });
@@ -317,5 +320,5 @@
     apply();
     window.dispatchEvent(new CustomEvent('langchange'));
   }
-  root.I18n = { t, apply, set, get lang() { return lang; } };
+  root.I18n = { t, apply, set, extend, get lang() { return lang; } };
 })(self);

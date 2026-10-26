@@ -25,6 +25,7 @@
           <button type="button" data-lang="ru" aria-pressed="true">RU</button>
           <button type="button" data-lang="en" aria-pressed="false">EN</button>
         </div>
+        <button type="button" id="account" class="btn small account" hidden></button>
         <button type="button" id="help" class="btn small" data-i18n="help_btn">Обучение</button>
       </div>
     </div>
@@ -32,9 +33,16 @@
       <span lang="ru">Сайт не делает мэшапы самостоятельно, только питчит и ускоряет/замедляет песню.</span>
       <span lang="en">This site does not make mashups on its own. It only pitch-shifts and speeds up or slows down a song.</span>
     </p>
-    <p class="lead" data-i18n="lead">Загрузите GD Song и обычную песню. Мэшапер подгонит тональность GD Song и темп обычной песни.</p>
   </header>
 
+  <nav class="tabs" role="tablist" aria-label="Разделы">
+    <button type="button" role="tab" id="tabbtn-match" aria-controls="tab-match" aria-selected="true" data-tab="match" data-i18n="tab_match">Подгонка</button>
+    <button type="button" role="tab" id="tabbtn-upload" aria-controls="tab-upload" aria-selected="false" tabindex="-1" data-tab="upload" data-i18n="tab_upload">Загрузить мешап</button>
+    <button type="button" role="tab" id="tabbtn-listen" aria-controls="tab-listen" aria-selected="false" tabindex="-1" data-tab="listen" data-i18n="tab_listen">Мешапы</button>
+  </nav>
+
+  <div id="tab-match" class="panel" role="tabpanel" aria-labelledby="tabbtn-match">
+    <p class="lead" data-i18n="lead">Загрузите GD Song и обычную песню. Мэшапер подгонит тональность GD Song и темп обычной песни.</p>
   <section class="songs" aria-label="Песни">
     <article class="song" id="song-gd">
       <h2>GD Song</h2>
@@ -138,9 +146,54 @@
     <div class="outputs" id="outputs"></div>
   </section>
 
+  </div>
+
+  <div id="tab-upload" class="panel" role="tabpanel" aria-labelledby="tabbtn-upload" hidden>
+    <h2 data-i18n="up_title">Загрузить мешап</h2>
+    <div id="up-gate" class="notice" hidden></div>
+    <form id="up-form" class="card-form" novalidate hidden>
+      <p class="uploader" id="up-as"></p>
+      <label class="pick" for="up-file">
+        <input type="file" id="up-file" accept="audio/*,.mp3,.ogg,.wav,.m4a,.flac">
+        <span class="pick-name" id="up-file-name" data-i18n="up_pick">Выбрать файл мешапа</span>
+      </label>
+      <p class="hint" data-i18n="up_hint"></p>
+      <div class="field">
+        <label for="up-gd" data-i18n="song_gd">GD Song</label>
+        <input id="up-gd" type="text" maxlength="40" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="up-reg" data-i18n="label_reg">Обычная песня</label>
+        <input id="up-reg" type="text" maxlength="40" autocomplete="off">
+      </div>
+      <button type="submit" id="up-submit" class="primary" data-i18n="up_submit">Загрузить</button>
+      <p class="status" id="up-status" role="status"></p>
+      <button type="button" id="up-go" class="btn" data-i18n="up_go" hidden>Смотреть мешапы</button>
+    </form>
+  </div>
+
+  <div id="tab-listen" class="panel" role="tabpanel" aria-labelledby="tabbtn-listen" hidden>
+    <div class="toolbar">
+      <h2 data-i18n="listen_title">Мешапы</h2>
+      <div class="toolbar-actions">
+        <select id="feed-sort" aria-label="Сортировка">
+          <option value="new" data-i18n="sort_new">Новые</option>
+          <option value="top" data-i18n="sort_top">Популярные</option>
+        </select>
+        <button type="button" id="feed-refresh" class="btn small" data-i18n="refresh">Обновить</button>
+      </div>
+    </div>
+    <div id="feed-gate" class="notice" hidden></div>
+    <div id="feed" class="feed"></div>
+    <p class="status" id="feed-status" role="status"></p>
+    <button type="button" id="feed-more" class="btn" data-i18n="more" hidden>Показать ещё</button>
+  </div>
+
   <footer data-i18n="footer">Всё считается в вашем браузере, файлы никуда не отправляются.</footer>
   <p class="version" id="version"></p>
 </main>
+
+<dialog id="dlg" class="dlg"></dialog>
 
 <div id="intro" class="intro" data-size="md" role="dialog" aria-modal="true" aria-labelledby="intro-title">
   <div class="intro-inner">
@@ -152,6 +205,7 @@
   </div>
 </div>
 <script src="version.js"></script>
+<script src="config.js"></script>
 <script src="i18n.js"></script>
 <script src="analysis.js"></script>
 <script src="dsp.js"></script>
@@ -160,5 +214,6 @@
 <script src="mascot-hd.js"></script>
 <script src="app.js"></script>
 <script src="intro.js"></script>
+<script src="community.js"></script>
 </body>
 </html>
