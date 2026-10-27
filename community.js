@@ -6,7 +6,10 @@
   const t = (...a) => I.t(...a);
   const cfg = self.MASHAPER_SUPABASE || {};
   const MAX_AUDIO = 50 * 1024 * 1024, MAX_AVATAR = 2 * 1024 * 1024, PAGE = 12;
-  const SDK_URL = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';
+  const SDK_URLS = [
+    'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js',
+    'https://unpkg.com/@supabase/supabase-js@2.45.4/dist/umd/supabase.js',
+  ];
   const MIME = { mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', m4a: 'audio/mp4', mp4: 'audio/mp4', aac: 'audio/aac', flac: 'audio/flac', webm: 'audio/webm' };
   const AVATAR_MIME = { 'image/jpeg': 1, 'image/png': 1, 'image/webp': 1 };
 
@@ -163,14 +166,17 @@
 
   // ---------- загрузка библиотеки и старт ----------
   function loadSdk() {
-    return new Promise((resolve, reject) => {
-      if (self.supabase && self.supabase.createClient) { resolve(); return; }
-      const s = document.createElement('script');
-      s.src = SDK_URL; s.async = true;
-      s.onload = () => (self.supabase && self.supabase.createClient ? resolve() : reject(new Error('no sdk')));
-      s.onerror = () => reject(new Error('sdk load failed'));
-      document.head.appendChild(s);
-    });
+    function tryLoad(i) {
+      return new Promise((resolve, reject) => {
+        if (self.supabase && self.supabase.createClient) { resolve(); return; }
+        const s = document.createElement('script');
+        s.src = SDK_URLS[i]; s.async = true;
+        s.onload = () => (self.supabase && self.supabase.createClient ? resolve() : reject(new Error('no sdk')));
+        s.onerror = () => reject(new Error('sdk load failed'));
+        document.head.appendChild(s);
+      }).catch((e) => { if (i + 1 < SDK_URLS.length) return tryLoad(i + 1); throw e; });
+    }
+    return tryLoad(0);
   }
 
   function notice(el, text, withLogin) {
