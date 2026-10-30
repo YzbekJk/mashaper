@@ -84,6 +84,8 @@
     },
   });
 
+  I.apply();
+
   function h(tag, cls, text) {
     const el = document.createElement(tag);
     if (cls) el.className = cls;
