@@ -53,6 +53,7 @@
       // анализ
       third_amb: ' Терция неразличима, считаю минором.',
       key_manual: (det, score) => 'Задано вручную. Автоопределение: ' + det + ' (' + score + ').',
+      key_close: (a, sa, b, sb) => 'Без тональности: два лучших варианта почти равны (' + a + ' ' + sa + ' и ' + b + ' ' + sb + '). Тональность можно выбрать вручную.',
       key_none: (det, score, alt) => 'Без тональности. Лучшее совпадение ' + det + ' всего ' + score + '.' + alt,
       key_auto: (name, score, alt) => 'Определено: ' + name + ' (уверенность ' + score + ').' + alt,
       chips_key: 'Если определено неверно, нажмите:',
@@ -212,6 +213,7 @@
       semis: (n) => (Math.abs(n) === 1 ? 'semitone' : 'semitones'),
       third_amb: ' The third is unclear, assuming minor.',
       key_manual: (det, score) => 'Set manually. Auto-detected: ' + det + ' (' + score + ').',
+      key_close: (a, sa, b, sb) => 'Keyless: the two best candidates are almost tied (' + a + ' ' + sa + ' and ' + b + ' ' + sb + '). You can pick the key manually.',
       key_none: (det, score, alt) => 'Keyless. Best match ' + det + ' at only ' + score + '.' + alt,
       key_auto: (name, score, alt) => 'Detected: ' + name + ' (confidence ' + score + ').' + alt,
       chips_key: 'If this is wrong, tap:',

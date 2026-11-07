@@ -622,6 +622,7 @@
 
   function keyName(k) { return NOTE_NAMES[k.tonic] + ' ' + k.mode; }
 
+  const CLOSE_MARGIN = 0.04;
   function resolveKey(song, threshold, mustHaveKey) {
     const o = song.keyOverride || 'auto';
     if (o === 'none' && !mustHaveKey) return { keyless: true, source: 'manual' };
@@ -631,6 +632,11 @@
     }
     if (!song.key || (!mustHaveKey && song.key.score < threshold)) {
       return { keyless: true, source: 'auto', score: song.key ? song.key.score : 0 };
+    }
+    // Два лучших варианта почти равны по оценке: уверенно назвать тональность нельзя (только для обычной песни).
+    const alt = song.key.alternatives && song.key.alternatives[0];
+    if (!mustHaveKey && alt && Math.abs(song.key.score - alt.score) < CLOSE_MARGIN) {
+      return { keyless: true, close: true, source: 'auto', score: song.key.score, alt };
     }
     return { keyless: false, tonic: song.key.tonic, mode: song.key.mode, source: 'auto', score: song.key.score };
   }

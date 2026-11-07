@@ -107,6 +107,8 @@
     const altText = song.key.ambiguousMode ? t('third_amb') : '';
     if (r.source === 'manual') {
       out.textContent = t('key_manual', A.keyName(song.key), score);
+    } else if (r.close) {
+      out.textContent = t('key_close', A.keyName(song.key), score, A.keyName(r.alt), r.alt.score.toFixed(2));
     } else if (r.keyless) {
       out.textContent = t('key_none', A.keyName(song.key), score, altText);
     } else {
