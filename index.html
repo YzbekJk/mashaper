@@ -120,6 +120,10 @@
       <p class="hint" data-i18n="cents_hint">Если строй песен отличается (например, +25 центов), GD Song сдвигается не на целое число полутонов, а точнее. Строй можно ввести вручную.</p>
     </div>
     <div class="setting">
+      <label class="check"><input id="tempo-variants" type="checkbox" checked> <span data-i18n="tempo_variants">Версии по всем темпам GD Song</span></label>
+      <p class="hint" data-i18n="tempo_variants_hint">Если у GD Song темп меняется (например, 146 до дропа и 160 после), обычная песня подгоняется под каждый темп отдельно, и вы получаете несколько версий.</p>
+    </div>
+    <div class="setting">
       <label for="key-threshold" data-i18n="key_thr">Порог тональности</label>
       <div class="range-row">
         <input id="key-threshold" type="range" min="0.4" max="0.95" step="0.05" value="0.75">

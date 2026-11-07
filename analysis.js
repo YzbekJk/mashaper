@@ -541,7 +541,7 @@
         const a = scores[bi - 1], b = scores[bi], c = scores[bi + 1], den = a - 2 * b + c;
         if (den < 0) bpm += 0.5 * (a - c) / den * step;
       }
-      wins.push({ t0, bpm: conf >= 4 ? bpm : null });
+      wins.push({ t0, bpm: conf >= 3 ? bpm : null, conf });
     }
     // окна с другим темпом: темп чётко определён и не совпадает с основным
     const other = wins.map((w) => w.bpm !== null && !sameTempo(w.bpm, mainBpm, 0.03));
@@ -551,7 +551,10 @@
       if (!other[i]) { i++; continue; }
       let j = i;
       while (j + 1 < wins.length && other[j + 1] && sameTempo(wins[j + 1].bpm, wins[i].bpm, 0.03)) j++;
-      if (j - i + 1 >= 3) {
+      // на краях песни (вступление, концовка) хватает двух окон: там часть короче
+      const edge = i === 0 || j === wins.length - 1;
+      const strong = wins.slice(i, j + 1).filter((w) => w.conf >= 4).length;
+      if (j - i + 1 >= (edge ? 2 : 3) && strong >= (edge ? 1 : 2)) {
         const vals = wins.slice(i, j + 1).map((w) => w.bpm).sort((a, b) => a - b);
         const start = i === 0 ? 0 : wins[i].t0 + WIN / 2 - STEP / 2;
         const end = j === wins.length - 1 ? mono.data.length / mono.sr : wins[j].t0 + WIN / 2 + STEP / 2;
@@ -569,7 +572,7 @@
     const total = mono.data.length / mono.sr;
     const refine = (seg) => {
       const sl = mono.data.subarray(Math.floor(seg.start * mono.sr), Math.floor(seg.end * mono.sr));
-      const r = sl.length > mono.sr * 20 ? detectBpm({ data: sl, sr: mono.sr }) : null;
+      const r = sl.length > mono.sr * 10 ? detectBpm({ data: sl, sr: mono.sr }) : null;
       return r && r.bpm > 0 && sameTempo(r.bpm, seg.bpm, 0.03) ? r.bpm : seg.bpm;
     };
     let changes = detectTempoChanges(mono, main.bpm);
@@ -717,7 +720,31 @@
       }
       if (pct > 25) warnings.push(en ? 'The tempo changes a lot, so the sound quality may get worse.' : 'Темп меняется сильно, качество звука может ухудшиться.');
     }
-    return { overLimit, semitones, tempoFactor: Math.abs(tempoFactor - 1) < 0.0005 ? 1 : tempoFactor, keyNote, tempoNote, warnings };
+    // Версии по темпу: если у GD Song темп меняется (например, 146 до дропа и 160 после),
+    // обычную песню подгоняем под каждый из этих темпов отдельно.
+    const factorFor = (gb) => {
+      const kk = Math.round(Math.log2(gb / rBpm));
+      const f = gb / Math.pow(2, kk) / rBpm;
+      return { target: gb / Math.pow(2, kk), factor: Math.abs(f - 1) < 0.0005 ? 1 : f };
+    };
+    const mainF = factorFor(gBpm);
+    const tempoVariants = [{ bpm: gBpm, target: mainF.target, factor: mainF.factor, main: true, ranges: [] }];
+    if (opts.tempoVariants !== false && Array.isArray(gd.bpmChanges)) {
+      for (const c of gd.bpmChanges) {
+        if (!(c.bpm > 0)) continue;
+        const dur = c.end - c.start;
+        const same = tempoVariants.find((v) => sameTempo(v.bpm, c.bpm, 0.03));
+        if (same) { if (!same.main) { same.w += dur; same.sum += c.bpm * dur; same.bpm = same.sum / same.w; } same.ranges.push([c.start, c.end]); continue; }
+        if (tempoVariants.length >= 3) continue;
+        tempoVariants.push({ bpm: c.bpm, w: dur, sum: c.bpm * dur, ranges: [[c.start, c.end]] });
+      }
+      for (const v of tempoVariants) {
+        if (v.main) continue;
+        const ff = factorFor(v.bpm);
+        v.target = ff.target; v.factor = ff.factor;
+      }
+    }
+    return { overLimit, semitones, tempoFactor: mainF.factor, tempoVariants, keyNote, tempoNote, warnings };
   }
 
   const api = { semis, songCents, TUNING_CONF_MIN, NOTE_NAMES, fft, toMono, detectKey, analyzeKey, detectBpm, detectTempoChanges, analyzeTempo, resolveKey, effectiveBpm, plan, keyName };

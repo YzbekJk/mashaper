@@ -17,7 +17,9 @@
   const pitchLimit = $('pitch-limit'), keyThreshold = $('key-threshold');
   function readStore(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function writeStore(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* без хранилища тоже работает */ } }
-  const useCents = $('use-cents');
+  const useCents = $('use-cents'), tempoVar = $('tempo-variants');
+  if (readStore('mashaper.tempoVariants') === '0') tempoVar.checked = false;
+  tempoVar.addEventListener('change', () => writeStore('mashaper.tempoVariants', tempoVar.checked ? '1' : '0'));
   if (readStore('mashaper.useCents') === '0') useCents.checked = false;
   const savedLimit = readStore('mashaper.pitchLimit'), savedThr = readStore('mashaper.keyThreshold2');
   if (savedLimit !== null && !isNaN(+savedLimit)) pitchLimit.value = savedLimit;
@@ -326,7 +328,7 @@
 
   $('run').addEventListener('click', () => {
     hideResults();
-    const res = A.plan(state.gd, state.reg, { pitchLimit: +pitchLimit.value, keyThreshold: +keyThreshold.value, useCents: useCents.checked, lang: self.I18n.lang });
+    const res = A.plan(state.gd, state.reg, { pitchLimit: +pitchLimit.value, keyThreshold: +keyThreshold.value, useCents: useCents.checked, tempoVariants: tempoVar.checked, lang: self.I18n.lang });
     if (res.error) { showError(res.error); return; }
     if (res.overLimit) {
       $('confirm-text').textContent = res.warnings[0];
@@ -364,19 +366,29 @@
       if (!lines.length) return;
       const li = document.createElement('li');
       li.className = 'warn';
-      li.textContent = t('bpm_changes_plan', label(id), lines.join('; '), +A.effectiveBpm(song).toFixed(3));
+      li.textContent = id === 'gd' && res.tempoVariants.length > 1
+        ? t('bpm_changes_variants', label(id), lines.join('; '), +A.effectiveBpm(song).toFixed(3))
+        : t('bpm_changes_plan', label(id), lines.join('; '), +A.effectiveBpm(song).toFixed(3));
       plan.appendChild(li);
     });
 
     try {
-      let gdOut = gd.channels, regOut = reg.channels;
+      let gdOut = gd.channels;
       if (res.semitones !== 0) {
         setProgress(t('prog_pitch'), 0);
         gdOut = await Dsp.pitchShift(gd.channels, res.semitones, (f) => setProgress(t('prog_pitch'), f));
       }
-      if (res.tempoFactor !== 1) {
-        setProgress(t('prog_tempo'), 0);
-        regOut = await Dsp.timeStretch(regOut, res.tempoFactor, (f) => setProgress(t('prog_tempo'), f));
+      const variants = res.tempoVariants && res.tempoVariants.length ? res.tempoVariants : [{ factor: res.tempoFactor, target: A.effectiveBpm(reg) * res.tempoFactor, main: true, ranges: [] }];
+      const regOuts = [];
+      for (let vi = 0; vi < variants.length; vi++) {
+        const v = variants[vi];
+        let ro = reg.channels;
+        if (v.factor !== 1) {
+          const lab = variants.length > 1 ? t('prog_tempo_n', vi + 1, variants.length) : t('prog_tempo');
+          setProgress(lab, 0);
+          ro = await Dsp.timeStretch(ro, v.factor, (f) => setProgress(lab, f));
+        }
+        regOuts.push(ro);
       }
       setProgress(t('prog_files'), 1);
       await tick();
@@ -385,11 +397,16 @@
         res.semitones === 0 ? t('out_pitch_none') : Number.isInteger(res.semitones) ? t('out_pitch', sign, res.semitones, plural(res.semitones)) : t('out_pitch_f', A.semis(res.semitones, self.I18n.lang)),
         baseName(gd.name) + (res.semitones === 0 ? '_original' : '_' + sign + (+res.semitones.toFixed(2)) + 'st'),
         gdOut, gd.sampleRate);
-      const target = A.effectiveBpm(reg) * res.tempoFactor;
-      addOutput(t('label_reg'),
-        res.tempoFactor === 1 ? t('out_tempo_none') : t('out_tempo', +target.toFixed(3)),
-        baseName(reg.name) + (res.tempoFactor === 1 ? '_original' : '_' + Math.round(target) + 'bpm'),
-        regOut, reg.sampleRate);
+      variants.forEach((v, vi) => {
+        const target = v.target;
+        const many = variants.length > 1;
+        const title = many ? t('label_reg') + ' · ' + (+target.toFixed(1)) + ' BPM' : t('label_reg');
+        let note = v.factor === 1 ? t('out_tempo_none') : t('out_tempo', +target.toFixed(3));
+        if (many) note += ' ' + (v.main ? t('var_main') : t('var_ranges', v.ranges.map((r) => fmtTime(r[0]) + '–' + fmtTime(r[1])).join(', ')));
+        addOutput(title, note,
+          baseName(reg.name) + (v.factor === 1 ? '_original' : '_' + (many ? (+target.toFixed(1)) : Math.round(target)) + 'bpm'),
+          regOuts[vi], reg.sampleRate);
+      });
       $('progress').hidden = true;
       window.dispatchEvent(new CustomEvent('mash', { detail: 'done' }));
     } catch (err) {
