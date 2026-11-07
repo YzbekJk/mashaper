@@ -17,6 +17,8 @@
   const pitchLimit = $('pitch-limit'), keyThreshold = $('key-threshold');
   function readStore(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function writeStore(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* без хранилища тоже работает */ } }
+  const useCents = $('use-cents');
+  if (readStore('mashaper.useCents') === '0') useCents.checked = false;
   const savedLimit = readStore('mashaper.pitchLimit'), savedThr = readStore('mashaper.keyThreshold2');
   if (savedLimit !== null && !isNaN(+savedLimit)) pitchLimit.value = savedLimit;
   if (savedThr !== null && !isNaN(+savedThr)) keyThreshold.value = savedThr;
@@ -32,6 +34,7 @@
     renderSettings(); writeStore('mashaper.keyThreshold2', keyThreshold.value);
     SLOTS.forEach(renderKeyInfo);
   });
+  useCents.addEventListener('change', () => { writeStore('mashaper.useCents', useCents.checked ? '1' : '0'); SLOTS.forEach(renderKeyInfo); });
   renderSettings();
 
   // ---------- смена языка ----------
@@ -69,6 +72,12 @@
       state[s].keyOverride = e.target.value;
       renderKeyInfo(s);
     });
+    $('cents-' + s).addEventListener('input', (e) => {
+      if (!state[s]) return;
+      const v = e.target.value.trim();
+      state[s].centsOverride = v === '' || isNaN(+v) ? null : Math.max(-50, Math.min(50, Math.round(+v)));
+      renderKeyInfo(s);
+    });
     $('bpm-' + s).addEventListener('input', (e) => {
       if (!state[s]) return;
       const v = parseFloat(e.target.value);
@@ -85,7 +94,12 @@
   function renderKeyInfo(s) {
     const song = state[s];
     const out = $('keyinfo-' + s);
-    if (!song || !song.key) { out.textContent = ''; return; }
+    const tun = $('tuninfo-' + s);
+    if (!song || !song.key) { out.textContent = ''; tun.textContent = ''; return; }
+    if (!useCents.checked) tun.textContent = '';
+    else if (song.centsOverride !== null && song.centsOverride !== undefined) tun.textContent = t('tun_manual', A.songCents(song));
+    else if (song.key.tuningConf >= A.TUNING_CONF_MIN) tun.textContent = t('tun_auto', A.songCents(song));
+    else tun.textContent = t('tun_unsure');
     const r = A.resolveKey(song, +keyThreshold.value, s === 'gd');
     const score = song.key.score.toFixed(2);
     const altText = song.key.ambiguousMode ? t('third_amb') : '';
@@ -230,9 +244,10 @@
       const at = A.analyzeTempo(mono);
       const bpm = at.bpm;
       if (token !== loadToken[s]) return;
-      state[s] = { name: file.name, channels: audio.channels, sampleRate: audio.sampleRate, key, keyChanges: ak.changes, bpmChanges: at.changes, bpm, keyOverride: 'auto', bpmOverride: null };
+      state[s] = { name: file.name, channels: audio.channels, sampleRate: audio.sampleRate, key, keyChanges: ak.changes, bpmChanges: at.changes, bpm, keyOverride: 'auto', centsOverride: null, bpmOverride: null };
       $('key-' + s).value = 'auto';
       $('bpm-' + s).value = bpm.bpm ? bpm.bpm.toFixed(3) : '';
+      $('cents-' + s).value = '';
       renderKeyInfo(s); renderBpmInfo(s); renderChanges(s); renderChips(s); renderBpmChips(s); renderBpmChanges(s);
       $('fields-' + s).hidden = false;
       const mins = Math.floor(audio.channels[0].length / audio.sampleRate / 60);
@@ -311,7 +326,7 @@
 
   $('run').addEventListener('click', () => {
     hideResults();
-    const res = A.plan(state.gd, state.reg, { pitchLimit: +pitchLimit.value, keyThreshold: +keyThreshold.value, lang: self.I18n.lang });
+    const res = A.plan(state.gd, state.reg, { pitchLimit: +pitchLimit.value, keyThreshold: +keyThreshold.value, useCents: useCents.checked, lang: self.I18n.lang });
     if (res.error) { showError(res.error); return; }
     if (res.overLimit) {
       $('confirm-text').textContent = res.warnings[0];
@@ -367,8 +382,8 @@
       await tick();
       const sign = res.semitones > 0 ? '+' : '';
       addOutput('GD Song',
-        res.semitones === 0 ? t('out_pitch_none') : t('out_pitch', sign, res.semitones, plural(res.semitones)),
-        baseName(gd.name) + (res.semitones === 0 ? '_original' : '_' + sign + res.semitones + 'st'),
+        res.semitones === 0 ? t('out_pitch_none') : Number.isInteger(res.semitones) ? t('out_pitch', sign, res.semitones, plural(res.semitones)) : t('out_pitch_f', A.semis(res.semitones, self.I18n.lang)),
+        baseName(gd.name) + (res.semitones === 0 ? '_original' : '_' + sign + (+res.semitones.toFixed(2)) + 'st'),
         gdOut, gd.sampleRate);
       const target = A.effectiveBpm(reg) * res.tempoFactor;
       addOutput(t('label_reg'),

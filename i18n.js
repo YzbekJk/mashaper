@@ -7,11 +7,24 @@
     return a > 10 && a < 20 ? 'полутонов' : b === 1 ? 'полутон' : b >= 2 && b <= 4 ? 'полутона' : 'полутонов';
   };
 
+  const ruCents = (n) => {
+    const a = Math.abs(n) % 100, b = a % 10;
+    return a > 10 && a < 20 ? 'центов' : b === 1 ? 'цент' : b >= 2 && b <= 4 ? 'цента' : 'центов';
+  };
+
   const D = {
     ru: {
       // главная страница
       lead: 'Загрузите GD Song и обычную песню. Мэшапер подгонит тональность GD Song и темп обычной песни.',
       label_reg: 'Обычная песня',
+      cents_lbl: 'Строй, центы',
+      cents_ph: 'авто',
+      use_cents: 'Учитывать центы',
+      cents_hint: 'Если строй песен отличается (например, +25 центов), GD Song сдвигается не на целое число полутонов, а точнее. Строй можно ввести вручную.',
+      tun_auto: (c) => 'Строй: ' + (c > 0 ? '+' : '') + c + ' ' + ruCents(c) + ' (авто).',
+      tun_manual: (c) => 'Строй задан вручную: ' + (c > 0 ? '+' : '') + c + ' ' + ruCents(c) + '.',
+      tun_unsure: 'Строй не удалось определить надёжно, считаю 0. Можно ввести вручную.',
+      out_pitch_f: (txt) => 'Питч ' + txt + ', темп не менялся.',
       pick: 'Выбрать файл',
       key: 'Тональность',
       bpm: 'BPM',
@@ -158,6 +171,14 @@
     en: {
       lead: 'Upload a GD Song and a regular song. Mashaper will match the GD Song’s key and the regular song’s tempo.',
       label_reg: 'Regular song',
+      cents_lbl: 'Tuning, cents',
+      cents_ph: 'auto',
+      use_cents: 'Match tuning in cents',
+      cents_hint: 'If the songs are tuned differently (say, +25 cents), the GD Song is shifted by a precise fractional amount instead of whole semitones. You can enter the tuning manually.',
+      tun_auto: (c) => 'Tuning: ' + (c > 0 ? '+' : '') + c + ' cents (auto).',
+      tun_manual: (c) => 'Tuning set manually: ' + (c > 0 ? '+' : '') + c + ' cents.',
+      tun_unsure: 'Could not detect the tuning reliably, assuming 0. You can enter it manually.',
+      out_pitch_f: (txt) => 'Pitch ' + txt + ', tempo unchanged.',
       pick: 'Choose a file',
       key: 'Key',
       bpm: 'BPM',
@@ -312,6 +333,7 @@
   function apply() {
     document.documentElement.lang = lang;
     document.querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = t(el.getAttribute('data-i18n')); });
+    document.querySelectorAll('[data-i18n-ph]').forEach((el) => { el.placeholder = t(el.getAttribute('data-i18n-ph')); });
   }
   function set(l) {
     if (l !== 'ru' && l !== 'en') return;

@@ -56,6 +56,11 @@
           <label for="key-gd" data-i18n="key">Тональность</label>
           <select id="key-gd"></select>
           <output id="keyinfo-gd"></output>
+          <div class="cents-row">
+            <label for="cents-gd" data-i18n="cents_lbl">Строй, центы</label>
+            <input id="cents-gd" type="number" inputmode="numeric" min="-50" max="50" step="1" placeholder="авто" data-i18n-ph="cents_ph">
+          </div>
+          <output id="tuninfo-gd"></output>
           <div class="chips" id="chips-gd" hidden></div>
         </div>
         <div class="field">
@@ -81,6 +86,11 @@
           <label for="key-reg" data-i18n="key">Тональность</label>
           <select id="key-reg"></select>
           <output id="keyinfo-reg"></output>
+          <div class="cents-row">
+            <label for="cents-reg" data-i18n="cents_lbl">Строй, центы</label>
+            <input id="cents-reg" type="number" inputmode="numeric" min="-50" max="50" step="1" placeholder="авто" data-i18n-ph="cents_ph">
+          </div>
+          <output id="tuninfo-reg"></output>
           <div class="chips" id="chips-reg" hidden></div>
         </div>
         <div class="field">
@@ -104,6 +114,10 @@
         <output id="pitch-limit-out" for="pitch-limit">±4 полутона</output>
       </div>
       <p class="hint" data-i18n="pitch_hint">Если GD Song нужно сдвинуть дальше этого значения, Мэшапер предупредит об этом.</p>
+    </div>
+    <div class="setting">
+      <label class="check"><input id="use-cents" type="checkbox" checked> <span data-i18n="use_cents">Учитывать центы</span></label>
+      <p class="hint" data-i18n="cents_hint">Если строй песен отличается (например, +25 центов), GD Song сдвигается не на целое число полутонов, а точнее. Строй можно ввести вручную.</p>
     </div>
     <div class="setting">
       <label for="key-threshold" data-i18n="key_thr">Порог тональности</label>

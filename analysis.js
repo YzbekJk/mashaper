@@ -97,7 +97,7 @@
     for (let k = kmin; k <= kmax; k++) {
       const b = mag[k];
       if (b > thr && b > mag[k - 1] && b >= mag[k + 1]) {
-        const a = mag[k - 1], c = mag[k + 1], den = a - 2 * b + c;
+        const a = Math.log(mag[k - 1] + 1e-12), lb = Math.log(b), c = Math.log(mag[k + 1] + 1e-12), den = a - 2 * lb + c;
         const d = den < 0 ? 0.5 * (a - c) / den : 0;
         out.push([(k + d) * sr / N, b / mx]);
       }
@@ -158,15 +158,34 @@
     }
     const sorted = frames.map((x) => x.e).sort((a, b) => a - b);
     const med = sorted[Math.floor(sorted.length / 2)];
-    let cs = 0, sn = 0;
+    // Строй: мода гистограммы отклонений от равномерной темперации (устойчива к шуму и ударным).
+    const BINS = 100, hist = new Float64Array(BINS);
     for (const fr of frames) {
       if (fr.e < med * 0.05 || fr.e <= 1e-9) continue;
       for (const [f, w] of fr.peaks) {
+        if (f < 100) continue;
         const p = 69 + 12 * Math.log2(f / 440), dev = p - Math.round(p);
-        cs += w * Math.cos(2 * Math.PI * dev); sn += w * Math.sin(2 * Math.PI * dev);
+        hist[Math.min(BINS - 1, Math.floor((dev + 0.5) * BINS))] += w;
       }
     }
-    const tuning = Math.atan2(sn, cs) / (2 * Math.PI);
+    const sm = new Float64Array(BINS);
+    let histSum = 0;
+    for (let i = 0; i < BINS; i++) {
+      let v = 0;
+      for (let j = -9; j <= 9; j++) v += hist[(i + j + BINS * 4) % BINS] * Math.exp(-j * j / 18);
+      sm[i] = v; histSum += v;
+    }
+    let bi = 0;
+    for (let i = 1; i < BINS; i++) if (sm[i] > sm[bi]) bi = i;
+    let sc = 0, sw = 0;
+    for (let j = -12; j <= 12; j++) {
+      const w = hist[(bi + j + BINS) % BINS];
+      sw += w; sc += w * ((bi + j + 0.5) / BINS - 0.5);
+    }
+    let tuning = sw > 0 ? sc / sw : 0;
+    if (tuning >= 0.5) tuning -= 1;
+    if (tuning < -0.5) tuning += 1;
+    const tuningConf = histSum > 0 ? sm[bi] / (histSum / BINS) : 0;
     const out = [];
     frames.forEach((fr, j) => {
       const t = (j * hop + N / 2) / sr;
@@ -186,7 +205,7 @@
       if (sum > 0) for (let i = 0; i < 12; i++) loc[i] /= sum;
       out.push({ t, chroma: sum > 0 ? loc : null, bass: sb > 0 ? low : null });
     });
-    return { frames: out, tuning, duration: data.length / sr };
+    return { frames: out, tuning, tuningConf, duration: data.length / sr };
   }
 
   function sumChroma(frames, t0, t1) {
@@ -325,8 +344,9 @@
   /** Возвращает { key, changes }: общая тональность и список смен (время в секундах). */
   function analyzeKey(mono) {
     const kf = keyFrames(mono);
-    if (!kf) return { key: { tonic: 0, mode: 'major', score: 0, tuning: 0, alternatives: [], candidates: [] }, changes: [], segments: [] };
+    if (!kf) return { key: { tonic: 0, mode: 'major', score: 0, tuning: 0, tuningConf: 0, alternatives: [], candidates: [] }, changes: [], segments: [] };
     const whole = keyFromChroma(sumChroma(kf.frames, 0, Infinity), kf.tuning);
+    whole.tuningConf = kf.tuningConf;
     const segments = findKeyChanges(kf);
     let key = whole, changes = [];
     if (segments.length > 1) {
@@ -336,6 +356,7 @@
       key = main.key;
       for (let i = 1; i < segments.length; i++) changes.push({ time: segments[i].start, from: segments[i - 1].key, to: segments[i].key });
     }
+    key.tuningConf = kf.tuningConf;
     key.candidates = keyCandidates(kf.frames, key);
     return { key, changes, segments };
   }
@@ -568,10 +589,32 @@
 
   // ---------- Подгонка ----------
   function semis(n, lang) {
-    if (lang === 'en') return (n > 0 ? '+' : '') + n + (Math.abs(n) === 1 ? ' semitone' : ' semitones');
+    const sign = n > 0 ? '+' : '';
+    if (Math.abs(n - Math.round(n)) > 1e-9) {
+      const v = sign + (+n.toFixed(2));
+      return lang === 'en' ? v + ' semitones' : v + ' полутона';
+    }
+    n = Math.round(n);
+    if (lang === 'en') return sign + n + (Math.abs(n) === 1 ? ' semitone' : ' semitones');
     const a = Math.abs(n) % 100, b = a % 10;
     const w = a > 10 && a < 20 ? 'полутонов' : b === 1 ? 'полутон' : b >= 2 && b <= 4 ? 'полутона' : 'полутонов';
-    return (n > 0 ? '+' : '') + n + ' ' + w;
+    return sign + n + ' ' + w;
+  }
+
+  function centsWord(n, lang) {
+    if (lang === 'en') return Math.abs(n) === 1 ? 'cent' : 'cents';
+    const a = Math.abs(n) % 100, b = a % 10;
+    return a > 10 && a < 20 ? 'центов' : b === 1 ? 'цент' : b >= 2 && b <= 4 ? 'цента' : 'центов';
+  }
+
+  const TUNING_CONF_MIN = 1.5; // ниже этого оценка строя ненадёжна и игнорируется
+  /** Строй песни в центах: ручное значение, иначе авто (если оценка уверенная), иначе 0. */
+  function songCents(song) {
+    if (song.centsOverride !== undefined && song.centsOverride !== null && song.centsOverride !== '' && isFinite(+song.centsOverride)) {
+      return Math.max(-50, Math.min(50, Math.round(+song.centsOverride)));
+    }
+    if (song.key && song.key.tuningConf >= TUNING_CONF_MIN) return Math.round(song.key.tuning * 100);
+    return 0;
   }
 
   function keyName(k) { return NOTE_NAMES[k.tonic] + ' ' + k.mode; }
@@ -599,6 +642,7 @@
    */
   function plan(gd, reg, opts) {
     const { pitchLimit, keyThreshold } = opts;
+    const useCents = opts.useCents !== false;
     const en = opts.lang === 'en';
     const gk = resolveKey(gd, keyThreshold, true), rk = resolveKey(reg, keyThreshold, false);
     const gBpm = effectiveBpm(gd), rBpm = effectiveBpm(reg);
@@ -624,16 +668,31 @@
       }
       let d = (((rk.tonic - gk.tonic) % 12) + 12) % 12;
       if (d > 6) d -= 12;
-      if (Math.abs(d) > pitchLimit) {
+      const gc = useCents ? songCents(gd) : 0, rc = useCents ? songCents(reg) : 0;
+      let dc = rc - gc;
+      if (Math.abs(dc) < 5) dc = 0;
+      let total = d + dc / 100;
+      if (total > 6) total -= 12; else if (total < -6) total += 12;
+      total = Math.round(total * 100) / 100;
+      if (Math.abs(total) > pitchLimit) {
         overLimit = true;
         warnings.push(en
-          ? 'Warning: the GD Song needs to move by ' + semis(d, 'en') + ', which is beyond your limit of ±' + pitchLimit + '. The sound may get distorted.'
-          : 'Внимание: GD Song нужно сдвинуть на ' + semis(d) + ', это больше вашей границы ±' + pitchLimit + '. Звук может исказиться.');
+          ? 'Warning: the GD Song needs to move by ' + semis(total, 'en') + ', which is beyond your limit of ±' + pitchLimit + '. The sound may get distorted.'
+          : 'Внимание: GD Song нужно сдвинуть на ' + semis(total) + ', это больше вашей границы ±' + pitchLimit + '. Звук может исказиться.');
       }
-      semitones = d;
-      keyNote = d === 0
+      semitones = total;
+      const fmtC = (c) => (c > 0 ? '+' : '') + c;
+      const tun = dc !== 0
+        ? (en ? ' Tuning: GD Song ' + fmtC(gc) + ', regular song ' + fmtC(rc) + ' cents.'
+              : ' Строй: GD Song ' + fmtC(gc) + ', обычная песня ' + fmtC(rc) + ' ' + centsWord(rc, 'ru') + '.')
+        : '';
+      keyNote = total === 0
         ? (en ? 'The key already matches (' + keyName(rk) + '), leaving the pitch as is.' : 'Тональность уже совпадает (' + keyName(rk) + '), питч не меняю.')
-        : 'GD Song: ' + keyName(gk) + ' → ' + keyName(rk) + ' (' + semis(d, en ? 'en' : 'ru') + ').';
+        : (d === 0 && dc !== 0
+          ? (en ? 'The key matches (' + keyName(rk) + '), but the tuning differs: GD Song ' : 'Тональность совпадает (' + keyName(rk) + '), но строй разный: GD Song ')
+            + (en ? fmtC(gc) + ', regular song ' + fmtC(rc) + ' cents → ' + semis(total, 'en') + ' (' + fmtC(dc) + ' cents).'
+                  : fmtC(gc) + ', обычная песня ' + fmtC(rc) + ' ' + centsWord(rc, 'ru') + ' → ' + semis(total) + ' (' + fmtC(dc) + ' ' + centsWord(dc, 'ru') + ').')
+          : 'GD Song: ' + keyName(gk) + ' → ' + keyName(rk) + ' (' + semis(total, en ? 'en' : 'ru') + ').' + tun);
     }
 
     // Темп: 65 и 130 считаются одним и тем же, поэтому сравниваем с точностью до октавы.
@@ -661,7 +720,7 @@
     return { overLimit, semitones, tempoFactor: Math.abs(tempoFactor - 1) < 0.0005 ? 1 : tempoFactor, keyNote, tempoNote, warnings };
   }
 
-  const api = { NOTE_NAMES, fft, toMono, detectKey, analyzeKey, detectBpm, detectTempoChanges, analyzeTempo, resolveKey, effectiveBpm, plan, keyName };
+  const api = { semis, songCents, TUNING_CONF_MIN, NOTE_NAMES, fft, toMono, detectKey, analyzeKey, detectBpm, detectTempoChanges, analyzeTempo, resolveKey, effectiveBpm, plan, keyName };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.MashaperAnalysis = api;
 })(typeof self !== 'undefined' ? self : this);

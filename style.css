@@ -434,3 +434,9 @@ input[type="text"], input[type="email"], input[type="password"] {
 .dlg-form { display: flex; flex-direction: column; gap: 12px; }
 .dlg-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .prof-head { display: flex; align-items: center; gap: 16px; }
+
+.cents-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.cents-row label { margin: 0; white-space: nowrap; }
+.cents-row input { width: 5.5em; }
+.field output + .cents-row + output { font-size: 0.8125rem; color: var(--muted); }
+.setting .check { display: flex; align-items: center; gap: 8px; text-transform: none; letter-spacing: 0; font-size: 0.9375rem; color: inherit; cursor: pointer; }
