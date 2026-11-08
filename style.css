@@ -440,3 +440,5 @@ input[type="text"], input[type="email"], input[type="password"] {
 .cents-row input { width: 5.5em; }
 .field output + .cents-row + output { font-size: 0.8125rem; color: var(--muted); }
 .setting .check { display: flex; align-items: center; gap: 8px; text-transform: none; letter-spacing: 0; font-size: 0.9375rem; color: inherit; cursor: pointer; }
+
+.vbadge { font: 500 0.75rem var(--font-mono); color: var(--muted); letter-spacing: 0; vertical-align: middle; margin-left: 4px; }

@@ -16,6 +16,7 @@
   I.apply();
   function renderVersion() {
     const V = self.MASHAPER_VERSION;
+    if ($('vbadge')) $('vbadge').textContent = V ? 'v' + V.v : '';
     $('version').textContent = V ? t('version') + ' ' + V.v + ' · ' + V.date.split('-').reverse().join('.') : '';
   }
   renderVersion();
