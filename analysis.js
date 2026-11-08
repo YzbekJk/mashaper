@@ -97,7 +97,7 @@
     for (let k = kmin; k <= kmax; k++) {
       const b = mag[k];
       if (b > thr && b > mag[k - 1] && b >= mag[k + 1]) {
-        const a = Math.log(mag[k - 1] + 1e-12), lb = Math.log(b), c = Math.log(mag[k + 1] + 1e-12), den = a - 2 * lb + c;
+        const a = mag[k - 1], c = mag[k + 1], den = a - 2 * b + c;
         const d = den < 0 ? 0.5 * (a - c) / den : 0;
         out.push([(k + d) * sr / N, b / mx]);
       }
@@ -158,6 +158,16 @@
     }
     const sorted = frames.map((x) => x.e).sort((a, b) => a - b);
     const med = sorted[Math.floor(sorted.length / 2)];
+    // Круговое среднее отклонений: используется для хромы (как раньше, чтобы оценки тональности не менялись).
+    let cs = 0, sn = 0;
+    for (const fr of frames) {
+      if (fr.e < med * 0.05 || fr.e <= 1e-9) continue;
+      for (const [f, w] of fr.peaks) {
+        const p = 69 + 12 * Math.log2(f / 440), dev = p - Math.round(p);
+        cs += w * Math.cos(2 * Math.PI * dev); sn += w * Math.sin(2 * Math.PI * dev);
+      }
+    }
+    const tuningChroma = Math.atan2(sn, cs) / (2 * Math.PI);
     // Строй: мода гистограммы отклонений от равномерной темперации (устойчива к шуму и ударным).
     const BINS = 100, hist = new Float64Array(BINS);
     for (const fr of frames) {
@@ -192,7 +202,7 @@
       if (fr.e < med * 0.05 || fr.e <= 1e-9) { out.push({ t, chroma: null, bass: null }); return; }
       const loc = new Float64Array(12), low = new Float64Array(12);
       for (const [f, w] of fr.peaks) {
-        const p = 69 + 12 * Math.log2(f / 440) - tuning, r = Math.round(p), dev = p - r;
+        const p = 69 + 12 * Math.log2(f / 440) - tuningChroma, r = Math.round(p), dev = p - r;
         const v = Math.sqrt(w) * Math.cos(Math.PI * dev) ** 2;
         loc[((r % 12) + 12) % 12] += v;
         if (f < 250) low[((r % 12) + 12) % 12] += v;
@@ -205,7 +215,7 @@
       if (sum > 0) for (let i = 0; i < 12; i++) loc[i] /= sum;
       out.push({ t, chroma: sum > 0 ? loc : null, bass: sb > 0 ? low : null });
     });
-    return { frames: out, tuning, tuningConf, duration: data.length / sr };
+    return { frames: out, tuning: tuningChroma, tuningHist: tuning, tuningConf, duration: data.length / sr };
   }
 
   function sumChroma(frames, t0, t1) {
@@ -357,6 +367,7 @@
       for (let i = 1; i < segments.length; i++) changes.push({ time: segments[i].start, from: segments[i - 1].key, to: segments[i].key });
     }
     key.tuningConf = kf.tuningConf;
+    key.tuning = kf.tuningHist; // для центов: мода гистограммы точнее среднего
     key.candidates = keyCandidates(kf.frames, key);
     return { key, changes, segments };
   }
