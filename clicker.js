@@ -149,10 +149,12 @@
   let clicks = 0, last = 0;
   document.addEventListener('click', (e) => {
     if (!e.target.closest || !e.target.closest('#sleeper, #mash-intro')) return;
+    try { const sel = getSelection(); if (sel) sel.removeAllRanges(); } catch (err) { /* ок */ }
     const now = Date.now();
     clicks = now - last > 2000 ? 1 : clicks + 1;
     last = now;
     if (clicks >= 7) { clicks = 0; open(); }
   }, true);
+  document.addEventListener('mousedown', (e) => { if (e.detail > 1 && e.target.closest && e.target.closest('#sleeper, #mash-intro')) e.preventDefault(); }, true);
   self.MashaperClicker = { open };
 })();

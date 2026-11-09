@@ -466,3 +466,11 @@ input[type="text"], input[type="email"], input[type="password"] {
 .ck-up em { grid-column: 2; grid-row: 2; text-align: right; }
 .ck-reset { align-self: center; border: 0; background: none; color: var(--muted); font: inherit; font-size: 0.8125rem; text-decoration: underline; cursor: pointer; }
 @media (prefers-reduced-motion: reduce) { .ck-banana.pop, .ck-float { animation: none; } }
+
+/* Мэш и банан не выделяются при быстрых нажатиях */
+.sleeper-slot, .sleeper, canvas.mash, #mash-intro, .ck-banana, .ck-banana canvas {
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
+}
+.sleeper:focus:not(:focus-visible), .ck-banana:focus:not(:focus-visible) { outline: none; }
+.sleeper canvas, #mash-intro, .ck-banana canvas { -webkit-user-drag: none; }
+.sleeper-slot ::selection, .sleeper::selection { background: transparent; }
