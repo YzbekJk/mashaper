@@ -33,9 +33,9 @@
       up_title: 'Загрузить мешап', up_gate: 'Чтобы загрузить мешап, войдите в аккаунт.',
       up_as: 'Загружаете как', up_pick: 'Выбрать файл мешапа',
       up_hint: 'Готовый мешап: mp3, wav, ogg, m4a или flac, до 50 МБ. Ниже укажите, из каких песен он сделан.',
-      song_gd: 'GD Level Name', up_submit: 'Загрузить', up_uploading: 'Загружаю…', up_done: 'Мешап загружен!',
+      song_gd: 'GD Level Name', song_reg: 'Название песни, с которой мешап', up_submit: 'Загрузить', up_uploading: 'Загружаю…', up_done: 'Мешап загружен!',
       up_go: 'Смотреть мешапы', up_need_file: 'Выберите файл мешапа.',
-      up_need_names: 'Заполните оба поля: GD Level Name и Обычная песня.',
+      up_need_names: 'Заполните оба поля: GD Level Name и название песни, с которой мешап.',
       up_big: 'Файл больше 50 МБ.', up_type: 'Нужен аудиофайл.',
       listen_title: 'Мешапы', sort_new: 'Новые', sort_top: 'Популярные', refresh: 'Обновить',
       more: 'Показать ещё', empty: 'Пока нет мешапов. Загрузите первый!', loading: 'Загружаю…',
@@ -67,9 +67,9 @@
       up_title: 'Upload a mashup', up_gate: 'Sign in to upload a mashup.',
       up_as: 'Uploading as', up_pick: 'Choose the mashup file',
       up_hint: 'A finished mashup: mp3, wav, ogg, m4a or flac, up to 50 MB. Below, say which songs it is made from.',
-      song_gd: 'GD Level Name', up_submit: 'Upload', up_uploading: 'Uploading…', up_done: 'Mashup uploaded!',
+      song_gd: 'GD Level Name', song_reg: 'Name of the song the mashup is with', up_submit: 'Upload', up_uploading: 'Uploading…', up_done: 'Mashup uploaded!',
       up_go: 'View mashups', up_need_file: 'Choose the mashup file.',
-      up_need_names: 'Fill in both fields: GD Level Name and Regular song.',
+      up_need_names: 'Fill in both fields: GD Level Name and the song name.',
       up_big: 'The file is larger than 50 MB.', up_type: 'An audio file is required.',
       listen_title: 'Mashups', sort_new: 'Newest', sort_top: 'Popular', refresh: 'Refresh',
       more: 'Show more', empty: 'No mashups yet. Upload the first one!', loading: 'Loading…',
@@ -564,7 +564,7 @@
     card.appendChild(top);
     // песни
     const songs = h('dl', 'songs-used');
-    [['song_gd', m.gd_song], ['label_reg', m.regular_song]].forEach(([k, v]) => {
+    [['song_gd', m.gd_song], ['song_reg', m.regular_song]].forEach(([k, v]) => {
       const row = h('div', '');
       row.appendChild(h('dt', '', t(k)));
       row.appendChild(h('dd', '', v));
