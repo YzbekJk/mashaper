@@ -474,3 +474,12 @@ input[type="text"], input[type="email"], input[type="password"] {
 .sleeper:focus:not(:focus-visible), .ck-banana:focus:not(:focus-visible) { outline: none; }
 .sleeper canvas, #mash-intro, .ck-banana canvas { -webkit-user-drag: none; }
 .sleeper-slot ::selection, .sleeper::selection { background: transparent; }
+
+/* Админ-панель */
+.dlg-body.admin { max-height: 80vh; overflow-y: auto; }
+.dlg-body.admin h3 { margin: 6px 0 0; font-size: 0.9375rem; }
+.adm-list { display: flex; flex-direction: column; gap: 6px; }
+.adm-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; }
+.adm-txt { display: flex; flex-direction: column; min-width: 0; }
+.adm-txt strong, .adm-txt span { overflow: hidden; text-overflow: ellipsis; overflow-wrap: anywhere; }
+.adm-txt span { font-size: 0.8125rem; color: var(--muted); }

@@ -33,6 +33,13 @@
       up_title: 'Загрузить мешап', up_gate: 'Чтобы загрузить мешап, войдите в аккаунт.',
       up_as: 'Загружаете как', up_pick: 'Выбрать файл мешапа',
       up_hint: 'Готовый мешап: mp3, wav, ogg, m4a или flac, до 50 МБ. Ниже укажите, из каких песен он сделан.',
+      admin_open: 'Админ-панель', admin_title: 'Админ-панель', admin_need_login: 'Чтобы войти в админ-панель, сначала войдите в аккаунт.',
+      admin_pass: 'Пароль админа', admin_enter: 'Войти', admin_wrong: 'Неверный пароль.', admin_many: 'Слишком много попыток. Подождите 15 минут.',
+      admin_nosetup: 'Админ-панель не настроена на сервере (нужно запустить admin.sql и задать пароль).', admin_forbidden: 'Доступ закрыт: войдите заново.',
+      admin_stats: (u, m, c, l) => 'Пользователей: ' + u + ' · мэшапов: ' + m + ' · комментариев: ' + c + ' · лайков: ' + l,
+      admin_mashups: 'Мэшапы', admin_comments: 'Последние комментарии', admin_del: 'Удалить', admin_logout: 'Выйти из админки',
+      admin_del_m: 'Удалить этот мэшап вместе с файлом, лайками и комментариями?', admin_del_c: 'Удалить этот комментарий?',
+      admin_none: 'Пока ничего нет.', admin_deleted: 'Удалено.', admin_session: 'Вход действует 1 час.',
       song_gd: 'GD Level Name', song_reg: 'Название песни, с которой мешап', up_submit: 'Загрузить', up_uploading: 'Загружаю…', up_done: 'Мешап загружен!',
       up_go: 'Смотреть мешапы', up_need_file: 'Выберите файл мешапа.',
       up_need_names: 'Заполните оба поля: GD Level Name и название песни, с которой мешап.',
@@ -67,6 +74,13 @@
       up_title: 'Upload a mashup', up_gate: 'Sign in to upload a mashup.',
       up_as: 'Uploading as', up_pick: 'Choose the mashup file',
       up_hint: 'A finished mashup: mp3, wav, ogg, m4a or flac, up to 50 MB. Below, say which songs it is made from.',
+      admin_open: 'Admin panel', admin_title: 'Admin panel', admin_need_login: 'Sign in to your account first to open the admin panel.',
+      admin_pass: 'Admin password', admin_enter: 'Enter', admin_wrong: 'Wrong password.', admin_many: 'Too many attempts. Wait 15 minutes.',
+      admin_nosetup: 'The admin panel is not set up on the server (run admin.sql and set the password).', admin_forbidden: 'Access denied: sign in again.',
+      admin_stats: (u, m, c, l) => 'Users: ' + u + ' · mashups: ' + m + ' · comments: ' + c + ' · likes: ' + l,
+      admin_mashups: 'Mashups', admin_comments: 'Latest comments', admin_del: 'Delete', admin_logout: 'Leave admin',
+      admin_del_m: 'Delete this mashup with its file, likes and comments?', admin_del_c: 'Delete this comment?',
+      admin_none: 'Nothing here yet.', admin_deleted: 'Deleted.', admin_session: 'Access lasts 1 hour.',
       song_gd: 'GD Level Name', song_reg: 'Name of the song the mashup is with', up_submit: 'Upload', up_uploading: 'Uploading…', up_done: 'Mashup uploaded!',
       up_go: 'View mashups', up_need_file: 'Choose the mashup file.',
       up_need_names: 'Fill in both fields: GD Level Name and the song name.',
@@ -700,6 +714,116 @@
     return card;
   }
 
+
+  // ---------- админ-панель ----------
+  // Пароль нигде не хранится в коде сайта: его проверяет сервер (Supabase, функция admin_login),
+  // в базе лежит только хеш. Права админа сервер выдаёт на 1 час и проверяет сам при каждом удалении.
+  function adminErr(e) {
+    const m = String((e && e.message) || e || '').toLowerCase();
+    if (m.indexOf('too_many') >= 0) return t('admin_many');
+    if (m.indexOf('could not find the function') >= 0 || m.indexOf('does not exist') >= 0 || m.indexOf('schema cache') >= 0) return t('admin_nosetup');
+    if (m.indexOf('forbidden') >= 0 || m.indexOf('not_signed_in') >= 0) return t('admin_forbidden');
+    return mapErr(e);
+  }
+
+  async function openAdmin() {
+    if (!sb) { cloudProblem(); return; }
+    if (!me) {
+      openDialog((body) => {
+        body.appendChild(h('h2', '', t('admin_title')));
+        body.appendChild(h('p', '', t('admin_need_login')));
+        const go = h('button', 'btn', t('sign_in')); go.type = 'button';
+        go.addEventListener('click', () => openAuth('in'));
+        body.appendChild(go); body.appendChild(closeBtn());
+      });
+      return;
+    }
+    let ok = false;
+    try { const r = await sb.rpc('is_admin'); ok = r.data === true; } catch (e) { ok = false; }
+    if (ok) openAdminPanel(); else openAdminLogin();
+  }
+
+  function openAdminLogin() {
+    openDialog((body) => {
+      body.appendChild(h('h2', '', t('admin_title')));
+      const form = h('form', 'dlg-form'); form.noValidate = true;
+      const pw = input('password', { autocomplete: 'off', required: 'required', maxlength: '100' });
+      form.appendChild(field(t('admin_pass'), pw));
+      const msg = h('p', 'status bad'); msg.setAttribute('role', 'alert');
+      const go = h('button', 'btn', t('admin_enter')); go.type = 'submit';
+      form.appendChild(msg); form.appendChild(go);
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!pw.value) return;
+        go.disabled = true; msg.textContent = '';
+        try {
+          const r = await sb.rpc('admin_login', { pw: pw.value });
+          pw.value = '';
+          if (r.error) throw r.error;
+          if (r.data === true) { openAdminPanel(); return; }
+          msg.textContent = t('admin_wrong');
+        } catch (err) { pw.value = ''; msg.textContent = adminErr(err); }
+        go.disabled = false;
+      });
+      body.appendChild(form); body.appendChild(closeBtn());
+    });
+  }
+
+  async function openAdminPanel() {
+    openDialog((body) => {
+      body.classList.add('admin');
+      body.appendChild(h('h2', '', t('admin_title')));
+      const stats = h('p', 'hint'), msg = h('p', 'status'), hint = h('p', 'hint', t('admin_session'));
+      const mHead = h('h3', '', t('admin_mashups')), mList = h('div', 'adm-list');
+      const cHead = h('h3', '', t('admin_comments')), cList = h('div', 'adm-list');
+      const out = h('button', 'link', t('admin_logout')); out.type = 'button';
+      out.addEventListener('click', async () => { try { await sb.rpc('admin_logout'); } catch (e) { /* ок */ } dlg.close(); });
+      body.append(stats, hint, msg, mHead, mList, cHead, cList, out, closeBtn());
+
+      const row = (title, sub, onDel) => {
+        const r = h('div', 'adm-row');
+        const txt = h('div', 'adm-txt'); txt.append(h('strong', '', title), h('span', '', sub));
+        const d = h('button', 'btn small', t('admin_del')); d.type = 'button';
+        d.addEventListener('click', async () => {
+          if (!confirm(onDel.q)) return;
+          d.disabled = true;
+          try { await onDel.run(); r.remove(); msg.className = 'status ok'; msg.textContent = t('admin_deleted'); }
+          catch (err) { d.disabled = false; msg.className = 'status bad'; msg.textContent = adminErr(err); }
+        });
+        r.append(txt, d);
+        return r;
+      };
+      const fill = (list, rows) => { list.textContent = ''; if (!rows.length) list.appendChild(h('p', 'hint', t('admin_none'))); rows.forEach((x) => list.appendChild(x)); };
+
+      (async () => {
+        try {
+          const s = await sb.rpc('admin_stats');
+          if (s.error) throw s.error;
+          stats.textContent = t('admin_stats', s.data.users, s.data.mashups, s.data.comments, s.data.likes);
+          const mr = await sb.from('mashup_feed').select('*').order('created_at', { ascending: false }).limit(100);
+          if (mr.error) throw mr.error;
+          fill(mList, (mr.data || []).map((m) => row(m.title, m.nickname + ' · ' + m.gd_song + ' + ' + m.regular_song, {
+            q: t('admin_del_m'),
+            run: async () => {
+              const d = await sb.from('mashups').delete().eq('id', m.id);
+              if (d.error) throw d.error;
+              if (m.audio_path) await sb.storage.from('mashups').remove([m.audio_path]);
+              feed.loaded = false; feed.items = [];
+            },
+          })));
+          const cr = await sb.rpc('admin_comments', { lim: 50 });
+          if (cr.error) throw cr.error;
+          fill(cList, (cr.data || []).map((c) => row(c.nickname + ' → ' + c.mashup_title, c.body, {
+            q: t('admin_del_c'),
+            run: async () => { const d = await sb.from('comments').delete().eq('id', c.id); if (d.error) throw d.error; feed.loaded = false; feed.items = []; },
+          })));
+        } catch (err) { msg.className = 'status bad'; msg.textContent = adminErr(err); }
+      })();
+    });
+  }
+  const adminBtn = $('admin-open');
+  if (adminBtn) adminBtn.addEventListener('click', openAdmin);
+
   // ---------- смена языка ----------
   window.addEventListener('langchange', () => {
     renderAccount(); renderUpload(); renderFeedGate();
@@ -715,5 +839,6 @@
   // ---------- старт ----------
   const startTab = location.hash.replace('#', '');
   if (TABS.indexOf(startTab) > 0) showTab(startTab, true);
+  if (configured && $('admin-row')) $('admin-row').hidden = false;
   init();
 })();
