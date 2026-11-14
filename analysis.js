@@ -757,7 +757,6 @@
         const dur = c.end - c.start;
         const same = tempoVariants.find((v) => sameTempo(v.bpm, c.bpm, 0.03));
         if (same) { if (!same.main) { same.w += dur; same.sum += c.bpm * dur; same.bpm = same.sum / same.w; } same.ranges.push([c.start, c.end]); continue; }
-        if (tempoVariants.length >= 3) continue;
         tempoVariants.push({ bpm: c.bpm, w: dur, sum: c.bpm * dur, ranges: [[c.start, c.end]] });
       }
       for (const v of tempoVariants) {
