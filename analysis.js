@@ -769,9 +769,9 @@
       for (const c of gd.bpmChanges) {
         if (!(c.bpm > 0)) continue;
         const dur = c.end - c.start;
-        const same = tempoVariants.find((v) => octaveSame(v.bpm, c.bpm, 0.03));
+        const same = tempoVariants.find((v) => !v.main && octaveSame(v.bpm, c.bpm, 0.03));
         if (same) { if (!same.main) { same.w += dur; same.sum += c.bpm * dur; same.bpm = same.sum / same.w; } same.ranges.push([c.start, c.end]); continue; }
-        tempoVariants.push({ bpm: c.bpm, w: dur, sum: c.bpm * dur, ranges: [[c.start, c.end]] });
+        tempoVariants.push({ bpm: c.bpm, w: dur, sum: c.bpm * dur, ranges: [[c.start, c.end]], sameAsMain: octaveSame(gBpm, c.bpm, 0.03) });
       }
       for (const v of tempoVariants) {
         if (v.main) continue;

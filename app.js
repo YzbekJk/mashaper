@@ -423,6 +423,8 @@
       for (let vi = 0; vi < variants.length; vi++) {
         const v = variants[vi];
         let ro = reg.channels;
+        const prev = variants.findIndex((w, wi) => wi < vi && Math.abs(w.factor / v.factor - 1) < 1e-6);
+        if (prev >= 0) { regOuts.push(regOuts[prev]); continue; } // тот же темп (например, на октаву выше): не считаем заново
         if (v.factor !== 1) {
           const lab = variants.length > 1 ? t('prog_tempo_n', vi + 1, variants.length) : t('prog_tempo');
           setProgress(lab, 0);
@@ -442,9 +444,9 @@
         const many = variants.length > 1;
         const title = many ? t('label_reg') + ' · ' + (+target.toFixed(1)) + ' BPM' : t('label_reg');
         let note = v.factor === 1 ? t('out_tempo_none') : t('out_tempo', +target.toFixed(3));
-        if (many) note += ' ' + (v.main ? t('var_main') : t('var_ranges', v.ranges.map((r) => fmtTime(r[0]) + '–' + fmtTime(r[1])).join(', ')));
+        if (many) note += ' ' + (v.main ? t('var_main') : t('var_ranges', v.ranges.map((r) => fmtTime(r[0]) + '–' + fmtTime(r[1])).join(', ')) + (v.sameAsMain ? ' ' + t('var_same_main') : ''));
         addOutput(title, note,
-          baseName(reg.name) + (v.factor === 1 ? '_original' : '_' + (many ? (+target.toFixed(1)) : Math.round(target)) + 'bpm'),
+          baseName(reg.name) + (many ? '_v' + (vi + 1) : '') + (v.factor === 1 ? '_original' : '_' + (many ? (+target.toFixed(1)) : Math.round(target)) + 'bpm'),
           regOuts[vi], reg.sampleRate);
       });
       $('progress').hidden = true;
