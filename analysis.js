@@ -487,6 +487,14 @@
 
 
   /** Одинаковый ли это темп: с точностью до удвоения и пульсов 4:3 и 3:2 (эхо и триоли). */
+  /** Одинаковый темп с точностью до октавы (в 2 раза), без полиритмов 3:2 и 4:3. */
+  function octaveSame(a, b, tol) {
+    let r = a / b;
+    while (r >= 2) r /= 2;
+    while (r < 1) r *= 2;
+    return Math.abs(r - 1) < tol || Math.abs(r / 2 - 1) < tol;
+  }
+
   function sameTempo(a, b, tol) {
     let r = a / b;
     while (r >= 2) r /= 2;
@@ -755,7 +763,7 @@
       for (const c of gd.bpmChanges) {
         if (!(c.bpm > 0)) continue;
         const dur = c.end - c.start;
-        const same = tempoVariants.find((v) => sameTempo(v.bpm, c.bpm, 0.03));
+        const same = tempoVariants.find((v) => octaveSame(v.bpm, c.bpm, 0.03));
         if (same) { if (!same.main) { same.w += dur; same.sum += c.bpm * dur; same.bpm = same.sum / same.w; } same.ranges.push([c.start, c.end]); continue; }
         tempoVariants.push({ bpm: c.bpm, w: dur, sum: c.bpm * dur, ranges: [[c.start, c.end]] });
       }
