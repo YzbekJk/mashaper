@@ -375,9 +375,9 @@
   function detectKey(mono) { return analyzeKey(mono).key; }
 
   // ---------- BPM ----------
-  function onsetEnvelope(mono, maxSec) {
+  function onsetEnvelope(mono, maxSec, hopSize) {
     const { data, sr } = mono;
-    const N = 1024, hop = 256;
+    const N = 1024, hop = hopSize || 256;
     let peak = 0;
     const seg = Math.min(data.length, Math.floor((maxSec || 200) * sr));
     const start = Math.max(0, Math.floor((data.length - seg) / 2));
@@ -502,9 +502,14 @@
    */
   function detectTempoChanges(mono, mainBpm) {
     if (!(mainBpm > 0)) return [];
-    const { env, fps } = onsetEnvelope(mono, 900);
+    // Весь трек целиком. Для длинных песен (больше 15 минут) шаг окон растёт, а огибающая считается реже,
+    // чтобы анализ не занимал минуты: окон не больше ~150.
+    const totalSec = mono.data.length / mono.sr;
+    const longSong = totalSec > 900;
+    const { env, fps } = onsetEnvelope(mono, 1e9, longSong ? 512 : 256);
     const M = env.length;
-    const WIN = 24, STEP = 6;
+    const STEP = longSong ? Math.ceil(totalSec / 150) : 6;
+    const WIN = Math.max(24, STEP);
     if (M < fps * (WIN + STEP)) return [];
     const wTr = Math.round(fps * 0.5);
     const o = new Float64Array(M), pre = new Float64Array(M + 1);
