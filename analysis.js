@@ -510,14 +510,14 @@
    */
   function detectTempoChanges(mono, mainBpm) {
     if (!(mainBpm > 0)) return [];
-    // Весь трек целиком. Для длинных песен (больше 15 минут) шаг окон растёт, а огибающая считается реже,
-    // чтобы анализ не занимал минуты: окон не больше ~150.
+    // Весь трек целиком. Для длинных песен (больше 15 минут) огибающая считается реже,
+    // чтобы анализ не занимал минуты. Шаг окон везде один, чтобы короткие участки не терялись.
     const totalSec = mono.data.length / mono.sr;
     const longSong = totalSec > 900;
-    const { env, fps } = onsetEnvelope(mono, 1e9, longSong ? 512 : 256);
+    const { env, fps } = onsetEnvelope(mono, 1e9, longSong ? 1024 : 256);
     const M = env.length;
-    const STEP = longSong ? Math.ceil(totalSec / 150) : 6;
-    const WIN = Math.max(24, STEP);
+    const STEP = 6;
+    const WIN = 24;
     if (M < fps * (WIN + STEP)) return [];
     const wTr = Math.round(fps * 0.5);
     const o = new Float64Array(M), pre = new Float64Array(M + 1);
@@ -537,8 +537,7 @@
       for (let i = 0; i < wl; i++) { seg[i] = o[i0 + i] * hw[i]; energy += seg[i]; }
       if (energy <= 1e-9) { wins.push({ t0, bpm: null }); continue; }
       const scores = new Float64Array(nCand);
-      let mean = 0;
-      for (let c = 0; c < nCand; c++) {
+      const scoreAt = (c) => {
         const bpm = lo + c * step;
         let sc = 0;
         for (let h = 1; h <= 3; h++) {
@@ -551,14 +550,21 @@
           }
           sc += [1, 0.6, 0.4][h - 1] * Math.sqrt(re * re + im * im);
         }
-        scores[c] = sc; mean += sc;
-      }
-      mean /= nCand;
+        return sc;
+      };
+      const weigh = (c) => scores[c] * Math.exp(-0.5 * (Math.log2((lo + c * step) / 125) / 0.55) ** 2);
+      // Сначала грубая сетка (через 1 BPM), потом точный поиск рядом с лучшим: в 3-4 раза быстрее.
+      const COARSE = 4;
+      let mean = 0, nc = 0;
+      for (let c = 0; c < nCand; c += COARSE) { scores[c] = scoreAt(c); mean += scores[c]; nc++; }
+      mean /= nc;
       let bi = 0, bw = -1;
-      for (let c = 0; c < nCand; c++) {
-        const w = scores[c] * Math.exp(-0.5 * (Math.log2((lo + c * step) / 125) / 0.55) ** 2);
-        if (w > bw) { bw = w; bi = c; }
-      }
+      for (let c = 0; c < nCand; c += COARSE) { const w = weigh(c); if (w > bw) { bw = w; bi = c; } }
+      const c0 = Math.max(0, bi - 6), c1 = Math.min(nCand - 1, bi + 6);
+      for (let c = c0; c <= c1; c++) if (c % COARSE !== 0) scores[c] = scoreAt(c);
+      bw = -1; let bf = bi;
+      for (let c = c0; c <= c1; c++) { const w = weigh(c); if (w > bw) { bw = w; bf = c; } }
+      bi = bf;
       const conf = mean > 0 ? scores[bi] / mean : 0;
       let bpm = lo + bi * step;
       if (bi > 0 && bi < nCand - 1) {
@@ -574,7 +580,7 @@
     while (i < wins.length) {
       if (!other[i]) { i++; continue; }
       let j = i;
-      while (j + 1 < wins.length && other[j + 1] && sameTempo(wins[j + 1].bpm, wins[i].bpm, 0.03)) j++;
+      while (j + 1 < wins.length && other[j + 1] && octaveSame(wins[j + 1].bpm, wins[i].bpm, 0.03)) j++;
       // на краях песни (вступление, концовка) хватает двух окон: там часть короче
       const edge = i === 0 || j === wins.length - 1;
       const strong = wins.slice(i, j + 1).filter((w) => w.conf >= 4).length;
