@@ -483,3 +483,8 @@ input[type="text"], input[type="email"], input[type="password"] {
 .adm-txt { display: flex; flex-direction: column; min-width: 0; }
 .adm-txt strong, .adm-txt span { overflow: hidden; text-overflow: ellipsis; overflow-wrap: anywhere; }
 .adm-txt span { font-size: 0.8125rem; color: var(--muted); }
+
+.tsec { margin-top: 6px; }
+.tsec-row { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 6px; align-items: center; }
+.tsec-row input { min-width: 0; width: 100%; }
+.tsec-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }

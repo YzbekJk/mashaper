@@ -1,2 +1,2 @@
 /* Версия сайта. Меняется при каждом обновлении: major.minor.patch и дата. */
-self.MASHAPER_VERSION = { v: '1.12.4', date: '2026-11-14' };
+self.MASHAPER_VERSION = { v: '1.13.0', date: '2026-11-14' };

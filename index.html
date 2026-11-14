@@ -71,6 +71,17 @@
         </div>
         <p class="key-changes" id="changes-gd"></p>
         <p class="key-changes" id="bpmchanges-gd"></p>
+        <div class="tsec" id="tsec-gd">
+          <p class="hint" data-i18n="tsec_title">Темп меняется, а сайт не заметил? Добавьте участок вручную: с какой секунды, до какой и какой BPM.</p>
+          <div class="tsec-row">
+            <input id="tsec-from" type="text" inputmode="numeric" placeholder="1:10" data-i18n-ph="tsec_from" autocomplete="off">
+            <input id="tsec-to" type="text" inputmode="numeric" placeholder="2:30" data-i18n-ph="tsec_to" autocomplete="off">
+            <input id="tsec-bpm" type="text" inputmode="decimal" placeholder="178" aria-label="BPM" autocomplete="off">
+            <button type="button" id="tsec-add" class="btn small" data-i18n="tsec_add">Добавить</button>
+          </div>
+          <p class="status" id="tsec-msg" role="status"></p>
+          <div class="tsec-list" id="tsec-list"></div>
+        </div>
       </div>
     </article>
 

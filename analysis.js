@@ -782,7 +782,7 @@
     return { overLimit, semitones, tempoFactor: mainF.factor, tempoVariants, keyNote, tempoNote, warnings };
   }
 
-  const api = { semis, songCents, TUNING_CONF_MIN, NOTE_NAMES, fft, toMono, detectKey, analyzeKey, detectBpm, detectTempoChanges, analyzeTempo, resolveKey, effectiveBpm, plan, keyName };
+  const api = { octaveSame, semis, songCents, TUNING_CONF_MIN, NOTE_NAMES, fft, toMono, detectKey, analyzeKey, detectBpm, detectTempoChanges, analyzeTempo, resolveKey, effectiveBpm, plan, keyName };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.MashaperAnalysis = api;
 })(typeof self !== 'undefined' ? self : this);

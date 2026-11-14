@@ -178,6 +178,43 @@
       : t('bpm_same');
   }
   function effectiveMainBpm(song) { return A.effectiveBpm(song); }
+
+  // ---- участки с другим темпом, добавленные вручную (только GD Song) ----
+  function parseTime(str) {
+    const m = String(str).trim().replace(',', '.').match(/^(?:(\d+):)?(\d+(?:\.\d+)?)$/);
+    return m ? (m[1] ? +m[1] * 60 : 0) + +m[2] : NaN;
+  }
+  function renderManual() {
+    const list = $('tsec-list'), song = state.gd;
+    list.textContent = '';
+    if (!song) return;
+    (song.bpmChanges || []).forEach((c, idx) => {
+      if (!c.manual) return;
+      const txt = fmtTime(c.start) + '–' + fmtTime(c.end) + ' · ' + (+c.bpm.toFixed(1)) + ' BPM';
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'chip'; b.textContent = '✕ ' + txt; b.title = t('tsec_remove', txt);
+      b.addEventListener('click', () => { song.bpmChanges.splice(idx, 1); renderManual(); renderBpmChanges('gd'); });
+      list.appendChild(b);
+    });
+  }
+  $('tsec-add').addEventListener('click', () => {
+    const song = state.gd, msg = $('tsec-msg');
+    msg.className = 'status';
+    if (!song) { msg.textContent = ''; return; }
+    const from = parseTime($('tsec-from').value), to = parseTime($('tsec-to').value);
+    const bpm = parseFloat($('tsec-bpm').value.replace(',', '.'));
+    const dur = song.channels[0].length / song.sampleRate;
+    if (!(from >= 0) || !(to > from) || to > dur + 1 || !(bpm >= 40 && bpm <= 300)) { msg.textContent = t('tsec_bad'); msg.classList.add('bad'); return; }
+    // ручной участок важнее автоматического: убираем пересекающиеся автоматические
+    song.bpmChanges = (song.bpmChanges || []).filter((c) => c.manual || c.end <= from || c.start >= to);
+    song.bpmChanges.push({ start: from, end: Math.min(to, dur), bpm, manual: true });
+    song.bpmChanges.sort((a, b) => a.start - b.start);
+    const main = A.effectiveBpm(song);
+    msg.textContent = A.octaveSame(main, bpm, 0.03) ? t('tsec_octave') : t('tsec_ok');
+    msg.classList.add(A.octaveSame(main, bpm, 0.03) ? 'bad' : 'ok');
+    $('tsec-from').value = ''; $('tsec-to').value = ''; $('tsec-bpm').value = '';
+    renderManual(); renderBpmChanges('gd');
+  });
   function fmtTime(t) {
     return Math.floor(t / 60) + ':' + String(Math.round(t % 60) % 60).padStart(2, '0');
   }
@@ -253,6 +290,7 @@
       $('bpm-' + s).value = bpm.bpm ? bpm.bpm.toFixed(3) : '';
       $('cents-' + s).value = '';
       renderKeyInfo(s); renderBpmInfo(s); renderChanges(s); renderChips(s); renderBpmChips(s); renderBpmChanges(s);
+      if (s === 'gd') { renderManual(); $('tsec-msg').textContent = ''; }
       $('fields-' + s).hidden = false;
       const mins = Math.floor(audio.channels[0].length / audio.sampleRate / 60);
       const secs = Math.round(audio.channels[0].length / audio.sampleRate % 60);
