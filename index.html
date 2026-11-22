@@ -98,6 +98,14 @@
           <select id="key-reg"></select>
           <output id="keyinfo-reg"></output>
           <div class="cents-row">
+            <label for="autotune-reg" data-i18n="autotune_lbl">Автотюн в голосе</label>
+            <select id="autotune-reg">
+              <option value="auto" data-i18n="autotune_auto">Не знаю (по звуку)</option>
+              <option value="yes" data-i18n="autotune_yes">Есть: тональность есть</option>
+              <option value="no" data-i18n="autotune_no">Нет: без тональности</option>
+            </select>
+          </div>
+          <div class="cents-row">
             <label for="cents-reg" data-i18n="cents_lbl">Строй, центы</label>
             <input id="cents-reg" type="number" inputmode="numeric" min="-50" max="50" step="1" placeholder="авто" data-i18n-ph="cents_ph">
           </div>

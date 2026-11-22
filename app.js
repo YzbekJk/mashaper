@@ -105,7 +105,9 @@
     const r = A.resolveKey(song, +keyThreshold.value, s === 'gd');
     const score = song.key.score.toFixed(2);
     const altText = song.key.ambiguousMode ? t('third_amb') : '';
-    if (r.source === 'manual') {
+    if (r.source === 'autotune') {
+      out.textContent = r.keyless ? t('key_autotune_no') : t('key_autotune_yes', A.keyName(r), score);
+    } else if (r.source === 'manual') {
       out.textContent = t('key_manual', A.keyName(song.key), score);
     } else if (r.close) {
       out.textContent = t('key_close', A.keyName(song.key), score, A.keyName(r.alt), r.alt.score.toFixed(2));
@@ -197,6 +199,11 @@
       list.appendChild(b);
     });
   }
+  $('autotune-reg').addEventListener('change', (e) => {
+    if (!state.reg) return;
+    state.reg.autotune = e.target.value;
+    renderKeyInfo('reg'); renderChips('reg'); renderChanges('reg');
+  });
   $('tsec-add').addEventListener('click', () => {
     const song = state.gd, msg = $('tsec-msg');
     msg.className = 'status';
@@ -289,6 +296,7 @@
       $('key-' + s).value = 'auto';
       $('bpm-' + s).value = bpm.bpm ? bpm.bpm.toFixed(3) : '';
       $('cents-' + s).value = '';
+      if (s === 'reg') $('autotune-reg').value = 'auto';
       renderKeyInfo(s); renderBpmInfo(s); renderChanges(s); renderChips(s); renderBpmChips(s); renderBpmChanges(s);
       if (s === 'gd') { renderManual(); $('tsec-msg').textContent = ''; }
       $('fields-' + s).hidden = false;
