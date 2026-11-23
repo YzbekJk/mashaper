@@ -218,6 +218,34 @@
     return { frames: out, tuning: tuningChroma, tuningHist: tuning, tuningConf, duration: data.length / sr };
   }
 
+  function sumBass(frames, t0, t1) {
+    const c = new Float64Array(12);
+    for (const fr of frames) if (fr.bass && fr.t >= t0 && fr.t < t1) for (let i = 0; i < 12; i++) c[i] += fr.bass[i];
+    return c;
+  }
+
+  // Когда две-три тональности подходят почти одинаково (разница оценок не больше 0.08), побеждает та,
+  // чья тоника заметнее в звуке: в общей хроме и в басу. Так путаница по квинте (C# minor вместо F# minor) реже.
+  const TONIC_CLOSE = 0.08, TONIC_GAIN = 0.015;
+  function refineByTonic(key, mid, bass) {
+    if (key.ambiguousMode) return key;
+    const sum = (c) => { let s = 0; for (let i = 0; i < 12; i++) s += c[i]; return s; };
+    const sm = sum(mid), sb = sum(bass);
+    if (!(sm > 0)) return key;
+    const prom = (k) => mid[k.tonic] / sm + (sb > 0 ? bass[k.tonic] / sb : 0);
+    const all = scoreKeys(mid);
+    const cur = all.find((k) => k.tonic === key.tonic && k.mode === key.mode);
+    if (!cur) return key;
+    let best = cur;
+    for (const k of all) {
+      if (k === cur || cur.score - k.score > TONIC_CLOSE) continue;
+      if (prom(k) - prom(cur) > TONIC_GAIN && prom(k) > prom(best)) best = k;
+    }
+    if (best === cur) return key;
+    // score остаётся прежним: он говорит, насколько песня вообще звучит в какой-то гамме
+    return { tonic: best.tonic, mode: best.mode, score: key.score, tuning: key.tuning, ambiguousMode: false, alternatives: all.filter((k) => k !== best).slice(0, 2), tonicRefined: true };
+  }
+
   function sumChroma(frames, t0, t1) {
     const c = new Float64Array(12);
     for (const fr of frames) if (fr.chroma && fr.t >= t0 && fr.t < t1) for (let i = 0; i < 12; i++) c[i] += fr.chroma[i];
@@ -355,7 +383,7 @@
   function analyzeKey(mono) {
     const kf = keyFrames(mono);
     if (!kf) return { key: { tonic: 0, mode: 'major', score: 0, tuning: 0, tuningConf: 0, alternatives: [], candidates: [] }, changes: [], segments: [] };
-    const whole = keyFromChroma(sumChroma(kf.frames, 0, Infinity), kf.tuning);
+    const whole = refineByTonic(keyFromChroma(sumChroma(kf.frames, 0, Infinity), kf.tuning), sumChroma(kf.frames, 0, Infinity), sumBass(kf.frames, 0, Infinity));
     whole.tuningConf = kf.tuningConf;
     const segments = findKeyChanges(kf);
     let key = whole, changes = [];
@@ -363,7 +391,7 @@
       // основная тональность: самый длинный кусок
       let main = segments[0];
       for (const sg of segments) if (sg.end - sg.start > main.end - main.start) main = sg;
-      key = main.key;
+      key = refineByTonic(main.key, sumChroma(kf.frames, main.start, main.end), sumBass(kf.frames, main.start, main.end));
       for (let i = 1; i < segments.length; i++) changes.push({ time: segments[i].start, from: segments[i - 1].key, to: segments[i].key });
     }
     key.tuningConf = kf.tuningConf;
@@ -670,7 +698,7 @@
     }
     // Два лучших варианта почти равны по оценке: уверенно назвать тональность нельзя (только для обычной песни).
     const alt = song.key.alternatives && song.key.alternatives[0];
-    if (!mustHaveKey && alt && Math.abs(song.key.score - alt.score) < CLOSE_MARGIN) {
+    if (!mustHaveKey && alt && !song.key.tonicRefined && Math.abs(song.key.score - alt.score) < CLOSE_MARGIN) {
       return { keyless: true, close: true, source: 'auto', score: song.key.score, alt };
     }
     return { keyless: false, tonic: song.key.tonic, mode: song.key.mode, source: 'auto', score: song.key.score };
