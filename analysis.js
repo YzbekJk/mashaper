@@ -684,11 +684,6 @@
   function resolveKey(song, threshold, mustHaveKey) {
     const o = song.keyOverride || 'auto';
     if (o === 'none' && !mustHaveKey) return { keyless: true, source: 'manual' };
-    // Автотюн: есть, значит тональность есть (берём лучшую найденную, порог не нужен); нет, значит без тональности.
-    if (o === 'auto' && !mustHaveKey && song.key) {
-      if (song.autotune === 'no') return { keyless: true, source: 'autotune', score: song.key.score };
-      if (song.autotune === 'yes') return { keyless: false, tonic: song.key.tonic, mode: song.key.mode, source: 'autotune', score: song.key.score };
-    }
     if (o !== 'auto' && o !== 'none') {
       const [t, m] = o.split('-');
       return { keyless: false, tonic: +t, mode: m, source: 'manual' };
